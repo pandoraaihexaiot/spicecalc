@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- saved from url=(0050)file:///C:/Users/Hexa%20IoT/Downloads/index_8.html -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SpiceCalc</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="./SpiceCalc_files/xlsx.full.min.js.download"></script>
+<script src="./SpiceCalc_files/supabase.min.js.download"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:system-ui,-apple-system,sans-serif;background:linear-gradient(145deg,#1a0f0a,#2d1810,#1a120d);color:#fef3c7;min-height:100vh;display:flex;flex-direction:column}
@@ -71,7 +71,7 @@ tr:hover{background:rgba(120,53,15,.1)}
 </style>
 </head>
 <body>
-<div id="app"></div>
+<div id="app"><div class="hdr"><div class="hdr-l"><div class="logo">🌶️</div><div><div class="hdr-t">SpiceCalc</div><div class="hdr-s">SEASONING COSTING SYSTEM</div></div></div><div class="hdr-r"><span style="padding: 3px 8px; background: rgba(52, 211, 153, 0.15); color: rgb(52, 211, 153); border: 1px solid rgba(52, 211, 153, 0.2);">● DB Connected</span></div></div><div class="nav"><button class="tab active">📦 Ingredients 🔒</button><button class="tab">🧪 Formulas 🔒</button><button class="tab">🧮 Costing 🔒</button><button class="tab">📊 Batch 🔒</button></div><div class="main"><div class="pin-wrap"><div class="pin-box"><div class="fs22 fw7 mb8">Ingredients Master</div><div class="c4 fs14 mb24">Enter shared PIN</div><input id="pin-inp" class="pin-inp" type="password" maxlength="6" placeholder="••••••"><div id="pin-err" class="err"></div><button class="btn btn-p" style="width: 100%;">Unlock</button></div></div></div><div class="ftr"><span>SpiceCalc v1.0</span><span>Created by PandoraAI · <a href="https://www.hexaiot.com.my/" target="_blank">www.hexaiot.com.my</a></span><span>Auto-locks after 30 min</span></div></div>
 <script>
 const h=(t,p,...c)=>{if(typeof t==="function")return t(p||{},...c);const e=document.createElement(t);if(p)Object.entries(p).forEach(([k,v])=>{if(k==="style"&&typeof v==="object")Object.assign(e.style,v);else if(k.startsWith("on"))e.addEventListener(k.slice(2).toLowerCase(),v);else if(k==="className")e.className=v;else if(k==="value")e.value=v;else if(k==="disabled")e.disabled=v;else if(k==="checked")e.checked=v;else if(k==="selected")e.selected=v;else if(k==="type")e.type=v;else if(k==="placeholder")e.placeholder=v;else if(k==="maxLength")e.maxLength=v;else if(k==="innerHTML")e.innerHTML=v;else if(k==="htmlFor")e.htmlFor=v;else if(k==="autofocus")setTimeout(()=>e.focus(),50);else e.setAttribute(k,v);});c.flat(9).forEach(ch=>{if(ch==null||ch===false)return;if(typeof ch==="string"||typeof ch==="number")e.appendChild(document.createTextNode(ch));else if(ch instanceof Node)e.appendChild(ch);});return e;};
 
@@ -84,7 +84,7 @@ try{sb=supabase.createClient(SB_URL,SB_KEY);}catch(e){console.error("Supabase in
 /* ─── State ─── */
 let ST={tab:"ing",s1:false,user:null,adm:false,ings:[],frms:[],csts:[],users:[],s1pin:"100100",toast:"",confirm:null,
   ingSearch:"",ingPage:1,ingSort:"itemCode",ingDir:"asc",ingForm:null,ingEdit:null,
-  frmView:"list",frmEdit:null,frmSearch:"",frmExpanded:{},
+  frmView:"list",frmEdit:null,frmSearch:"",frmExpanded:{},frmSelMode:false,frmSel:{},
   costSel:null,costData:null,
   batchSel:null,batchSize:0,batchDetail:false,
   dbOk:false,
@@ -100,7 +100,7 @@ function ingToDb(i){return{item_code:i.itemCode,item_name:i.itemName||"",descrip
 
 function userFromDb(r){return{id:r.slot,name:r.name,pin:r.pin,role:r.role,dbId:r.id};}
 
-function frmFromDb(r,fis){return{id:r.id,productCode:r.product_code,productName:r.product_name,batchSize:+r.batch_size||100,version:r.version||1,versionNote:r.version_note||"",active:r.active!==false,inputMode:r.input_mode||"kg",notes:r.notes||"",createdBy:r.created_by,createdAt:r.created_at,updatedAt:r.updated_at,
+function frmFromDb(r,fis){return{id:r.id,productCode:r.product_code,productName:r.product_name,batchSize:+r.batch_size||100,version:r.version||1,versionNote:r.version_note||"",active:r.active!==false,inputMode:r.input_mode||"kg",notes:r.notes||"",sensory:r.sensory||{},createdBy:r.created_by,createdAt:r.created_at,updatedAt:r.updated_at,
   ingredients:(fis||[]).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).map(fi=>({itemCode:fi.item_code,qty:+fi.qty||0,pct:+fi.pct||0}))};}
 
 function costFromDb(r){return{id:r.id,formulaId:r.formula_id,productCode:r.product_code||"",productName:r.product_name||"",version:r.version||1,rawPerKg:+r.raw_per_kg||0,wastage:+r.wastage||0,packaging:+r.packaging||0,outerPkg:+r.outer_pkg||0,labor:+r.labor||0,shipping:+r.shipping||0,document:+r.document||0,lab:+r.lab||0,other:+r.other||0,margin:+r.margin||30,createdBy:r.created_by,createdAt:r.created_at,updatedAt:r.updated_at};}
@@ -151,7 +151,7 @@ async function dbDeleteIng(id){
 
 async function saveFrms(){/* no-op */}
 async function dbSaveFrm(frm){
-  const frmData={product_code:frm.productCode,product_name:frm.productName,batch_size:frm.batchSize,version:frm.version||1,version_note:frm.versionNote||"",active:frm.active,input_mode:frm.inputMode||"kg",notes:frm.notes||"",created_by:frm.createdBy,updated_at:new Date().toISOString()};
+  const frmData={product_code:frm.productCode,product_name:frm.productName,batch_size:frm.batchSize,version:frm.version||1,version_note:frm.versionNote||"",active:frm.active,input_mode:frm.inputMode||"kg",notes:frm.notes||"",sensory:frm.sensory||{},created_by:frm.createdBy,updated_at:new Date().toISOString()};
   let frmId=frm.id;
   if(frmId&&typeof frmId==="string"&&frmId.length>10){
     await sb.from("formulas").update(frmData).eq("id",frmId);
@@ -318,22 +318,41 @@ function renderCosting(){
 
   // Header
   wrap.appendChild(h("div",{className:"flex between items-c wrap mb24 gap16"},
-    h("div",null,h("div",{className:"fs22 fw7 c1"},"Cost Calculator"),h("div",{className:"c4 fs14 mt8"},"Calculate selling price per KG · "+ST.user.name)),
+    h("div",null,h("div",{className:"fs22 fw7 c1"},"Cost Calculator"),h("div",{className:"c4 fs14 mt8"},"Calculate selling price per KG · "+ST.user.name+(ST.costData&&ST.costData.updatedAt?" · Last updated: "+ST.costData.updatedAt:""))),
     ST.costData?h("button",{className:"btn btn-p",onClick:saveCostCalc},"💾 Save Costing"):null
   ));
 
-  // Formula selector
+  // Formula selector - searchable
   const selDiv=h("div",{className:"card mb24"});
   selDiv.appendChild(h("div",{className:"lbl mb8"},"Select Formula"));
-  const sel=h("select",{className:"inp",style:{cursor:"pointer",fontSize:15,padding:"10px 14px"},
-    onChange:e=>{ST.costSel=e.target.value||null;ST.costData=null;render();}});
-  sel.appendChild(h("option",{value:""},"— Choose a formula —"));
-  formulas.forEach(f=>{
-    const opt=h("option",{value:f.id},f.productCode+" — "+f.productName+" (V"+(f.version||1)+")"+(f.active?" ✅":""));
-    if(f.id===ST.costSel)opt.selected=true;
-    sel.appendChild(opt);
-  });
-  selDiv.appendChild(sel);
+  const costWrap=h("div",{style:{position:"relative"}});
+  const selF_cost=ST.costSel?ST.frms.find(x=>x.id===ST.costSel):null;
+  const costInp=h("input",{className:"inp",style:{fontSize:15,padding:"10px 14px"},
+    value:selF_cost?selF_cost.productCode+" — "+selF_cost.productName+" (V"+(selF_cost.version||1)+")":"",
+    placeholder:"Search by code or name..."});
+  costWrap.appendChild(costInp);
+  let _costOrig=ST.costSel||"";
+  function showCostDd(txt){
+    const old=costWrap.querySelector(".dd");if(old)old.remove();
+    const sv=(txt||"").toLowerCase();
+    const fil=sv?formulas.filter(f=>f.productCode.toLowerCase().includes(sv)||f.productName.toLowerCase().includes(sv)):formulas;
+    const dd=h("div",{className:"dd",style:{maxHeight:250}});
+    if(!fil.length){dd.appendChild(h("div",{style:{padding:"10px 14px",color:"rgba(180,120,60,.4)",fontSize:13}},"No matches"));}
+    else fil.slice(0,15).forEach(f=>{
+      dd.appendChild(h("button",{className:"dd-item",style:f.id===ST.costSel?{background:"rgba(120,53,15,.25)"}:{},
+        onMousedown:e=>{e.preventDefault();ST.costSel=f.id;ST.costData=null;_costOrig=f.id;costWrap.querySelector(".dd")?.remove();render();}},
+        h("span",{className:"mono fw6",style:{minWidth:80,fontSize:13}},f.productCode),
+        h("span",{className:"c4",style:{flex:1,fontSize:13}},f.productName),
+        h("span",{className:"c5",style:{fontSize:11}},"V"+(f.version||1)+(f.active?" ✅":""))
+      ));
+    });
+    if(fil.length>15)dd.appendChild(h("div",{style:{padding:"6px 12px",color:"rgba(180,120,60,.35)",fontSize:11,textAlign:"center"}},"+"+(fil.length-15)+" more"));
+    costWrap.appendChild(dd);
+  }
+  costInp.addEventListener("focus",()=>{_costOrig=ST.costSel;costInp.value="";showCostDd("");});
+  costInp.addEventListener("input",()=>showCostDd(costInp.value));
+  costInp.addEventListener("blur",()=>{setTimeout(()=>{costWrap.querySelector(".dd")?.remove();const cur=ST.costSel?ST.frms.find(x=>x.id===ST.costSel):null;costInp.value=cur?cur.productCode+" — "+cur.productName+" (V"+(cur.version||1)+")":"";},200);});
+  selDiv.appendChild(costWrap);
   if(formulas.length===0)selDiv.appendChild(h("div",{className:"c5 fs12 mt8"},"No formulas available. Create formulas in the Formulas tab first."));
   wrap.appendChild(selDiv);
 
@@ -509,21 +528,38 @@ function renderBatch(){
     ):null
   ));
 
-  // Formula selector
+  // Formula selector - searchable
   const selCard=h("div",{className:"card mb24"});
   const selGrid=h("div",{style:{display:"grid",gridTemplateColumns:"2fr 1fr",gap:16}});
-  // Formula dropdown
   const selDiv=h("div",null);
   selDiv.appendChild(h("div",{className:"lbl mb8"},"Select Formula"));
-  const sel=h("select",{className:"inp",style:{cursor:"pointer",fontSize:15,padding:"10px 14px"},
-    onChange:e=>{ST.batchSel=e.target.value||null;if(!e.target.value){ST.batchSize=0;}else{const f=ST.frms.find(x=>x.id===e.target.value);if(f)ST.batchSize=f.batchSize||100;}render();}});
-  sel.appendChild(h("option",{value:""},"— Choose a formula —"));
-  formulas.forEach(f=>{
-    const opt=h("option",{value:f.id},f.productCode+" — "+f.productName+" (V"+(f.version||1)+")"+(f.active?" ✅":""));
-    if(f.id===ST.batchSel)opt.selected=true;
-    sel.appendChild(opt);
-  });
-  selDiv.appendChild(sel);
+  const batchWrap=h("div",{style:{position:"relative"}});
+  const selF_batch=ST.batchSel?ST.frms.find(x=>x.id===ST.batchSel):null;
+  const batchInp=h("input",{className:"inp",style:{fontSize:15,padding:"10px 14px"},
+    value:selF_batch?selF_batch.productCode+" — "+selF_batch.productName+" (V"+(selF_batch.version||1)+")":"",
+    placeholder:"Search by code or name..."});
+  batchWrap.appendChild(batchInp);
+  function showBatchDd(txt){
+    const old=batchWrap.querySelector(".dd");if(old)old.remove();
+    const sv=(txt||"").toLowerCase();
+    const fil=sv?formulas.filter(f=>f.productCode.toLowerCase().includes(sv)||f.productName.toLowerCase().includes(sv)):formulas;
+    const dd=h("div",{className:"dd",style:{maxHeight:250}});
+    if(!fil.length){dd.appendChild(h("div",{style:{padding:"10px 14px",color:"rgba(180,120,60,.4)",fontSize:13}},"No matches"));}
+    else fil.slice(0,15).forEach(f=>{
+      dd.appendChild(h("button",{className:"dd-item",style:f.id===ST.batchSel?{background:"rgba(120,53,15,.25)"}:{},
+        onMousedown:e=>{e.preventDefault();ST.batchSel=f.id;const fm=ST.frms.find(x=>x.id===f.id);if(fm)ST.batchSize=fm.batchSize||100;batchWrap.querySelector(".dd")?.remove();render();}},
+        h("span",{className:"mono fw6",style:{minWidth:80,fontSize:13}},f.productCode),
+        h("span",{className:"c4",style:{flex:1,fontSize:13}},f.productName),
+        h("span",{className:"c5",style:{fontSize:11}},"V"+(f.version||1)+(f.active?" ✅":""))
+      ));
+    });
+    if(fil.length>15)dd.appendChild(h("div",{style:{padding:"6px 12px",color:"rgba(180,120,60,.35)",fontSize:11,textAlign:"center"}},"+"+(fil.length-15)+" more"));
+    batchWrap.appendChild(dd);
+  }
+  batchInp.addEventListener("focus",()=>{batchInp.value="";showBatchDd("");});
+  batchInp.addEventListener("input",()=>showBatchDd(batchInp.value));
+  batchInp.addEventListener("blur",()=>{setTimeout(()=>{batchWrap.querySelector(".dd")?.remove();const cur=ST.batchSel?ST.frms.find(x=>x.id===ST.batchSel):null;batchInp.value=cur?cur.productCode+" — "+cur.productName+" (V"+(cur.version||1)+")":"";},200);});
+  selDiv.appendChild(batchWrap);
   selGrid.appendChild(selDiv);
   // Batch size input
   const bsDiv=h("div",null);
@@ -655,6 +691,13 @@ function exportBatchPDF(f){
 ${f.notes?`<div style="margin-top:24px;padding:16px;border:1px solid #fde68a;border-radius:10px;background:#fffbeb">
 <div style="font-size:10px;color:#92400e;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;margin-bottom:8px">📝 Mixing / Further Instructions</div>
 <div style="font-size:13px;color:#374151;line-height:1.7;white-space:pre-wrap">${f.notes}</div></div>`:""}
+${(()=>{const s=f.sensory||{};const hasAny=Object.values(s).some(v=>v);if(!hasAny)return"";
+const sRows=[["Texture",s.texture],["Appearance",s.appearance],["Taste",s.taste],["Aroma",s.aroma],["Size / Granulation",s.size],["Internal Team Feedback",s.internalFeedback],["Customer Feedback",s.customerFeedback],["Others",s.others]].filter(r=>r[1]);
+let html='<div style="margin-top:24px;padding:16px;border:1px solid #e9d5ff;border-radius:10px;background:#faf5ff"><div style="font-size:10px;color:#7c3aed;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;margin-bottom:12px">🧪 Sensory Feedback</div>';
+if(s.imageUrl)html+='<img src="'+s.imageUrl+'" style="width:120px;height:120px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;margin-bottom:12px">';
+html+='<table style="width:100%;font-size:13px;border-collapse:collapse">';
+sRows.forEach(r=>{html+='<tr><td style="padding:6px 12px 6px 0;color:#6b7280;font-weight:600;vertical-align:top;white-space:nowrap;width:160px">'+r[0]+'</td><td style="padding:6px 0;color:#374151;white-space:pre-wrap">'+r[1]+'</td></tr>';});
+html+='</table></div>';return html;})()}
 <div style="margin-top:40px;border-top:1px solid #e5e7eb;padding-top:16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px">
 <div><div style="font-size:10px;color:#9ca3af;margin-bottom:24px">Prepared by:</div><div style="border-bottom:1px solid #d1d5db"></div></div>
 <div><div style="font-size:10px;color:#9ca3af;margin-bottom:24px">Checked by:</div><div style="border-bottom:1px solid #d1d5db"></div></div>
@@ -728,8 +771,8 @@ function renderIngredients(){
     h("div",null,h("div",{className:"fs22 fw7 c1"},"Ingredients Master"),h("div",{className:"c4 fs14 mt8"},ST.ings.length+" ingredient"+(ST.ings.length!==1?"s":""))),
     h("div",{className:"flex gap8 wrap"},
       h("button",{className:"btn btn-p",onClick:()=>{ST.ingForm={itemCode:"",itemName:"",description:"",packagingSize:"",pricePerKg:""};ST.ingEdit=null;render();}},"➕ Add"),
-      h("button",{className:"btn btn-s",onClick:exportIngs},"⬇ Export"),
-      h("button",{className:"btn btn-s",onClick:()=>document.getElementById("ing-file").click()},"⬆ Import"),
+      h("button",{className:"btn btn-s",onClick:exportIngs},"⬆ Export"),
+      h("button",{className:"btn btn-s",onClick:()=>document.getElementById("ing-file").click()},"⬇ Import"),
       h("input",{id:"ing-file",type:"file",accept:".xlsx,.xls,.csv",className:"hidden",onChange:importIngs})
     )
   ));
@@ -843,13 +886,18 @@ function renderFormulas(){
   wrap.appendChild(h("div",{className:"flex between items-c wrap mb24 gap16"},
     h("div",null,h("div",{className:"fs22 fw7 c1"},"Formula Builder"),h("div",{className:"c4 fs14 mt8"},totalFormulas+" version"+(totalFormulas!==1?"s":"")+" · "+uniqueProducts+" product"+(uniqueProducts!==1?"s":"")+" · "+ST.user.name)),
     h("div",{className:"flex gap8 wrap"},
-      h("button",{className:"btn btn-p",onClick:()=>{ST.frmEdit={id:"f"+Date.now(),productCode:"",productName:"",batchSize:100,version:1,versionNote:"",active:true,inputMode:"kg",ingredients:[{itemCode:"",qty:0,pct:0}],createdBy:ST.user.id,createdAt:new Date().toISOString().slice(0,10),updatedAt:new Date().toISOString().slice(0,10)};ST.frmView="edit";render();}},"➕ New Formula"),
-      h("button",{className:"btn btn-s",disabled:!myF.length,onClick:exportFrms},"⬇ Export"),
-      h("button",{className:"btn btn-s",onClick:()=>document.getElementById("frm-file").click()},"⬆ Import"),
+      h("button",{className:"btn btn-p",onClick:()=>{ST.frmEdit={id:"f"+Date.now(),productCode:"",productName:"",batchSize:100,version:1,versionNote:"",active:true,inputMode:"kg",sensory:{},ingredients:[{itemCode:"",qty:0,pct:0}],createdBy:ST.user.id,createdAt:new Date().toISOString().slice(0,10),updatedAt:new Date().toISOString().slice(0,10)};ST.frmView="edit";render();}},"➕ New Formula"),
+      ST.frmSelMode?h("button",{className:"btn btn-p",onClick:()=>{const cnt=Object.values(ST.frmSel).filter(Boolean).length;if(!cnt){flash("Select at least 1 formula");return;}exportFrmsSelected();ST.frmSelMode=false;ST.frmSel={};render();}},"⬆ Export ("+Object.values(ST.frmSel).filter(Boolean).length+")"):null,
+      ST.frmSelMode?h("button",{className:"btn btn-s",onClick:()=>{ST.frmSelMode=false;ST.frmSel={};render();}},"✕ Cancel"):null,
+      !ST.frmSelMode?h("button",{className:"btn btn-s",disabled:!myF.length,onClick:()=>{ST.frmSelMode=true;ST.frmSel={};render();}},"⬆ Export"):null,
+      h("button",{className:"btn btn-s",onClick:()=>document.getElementById("frm-file").click()},"⬇ Import"),
       h("input",{id:"frm-file",type:"file",accept:".xlsx,.xls,.csv",className:"hidden",onChange:importFrms})
     )
   ));
-  wrap.appendChild(h("div",{className:"mb16"},h("input",{className:"inp",placeholder:"Search by product code, name, or version note...",value:ST.frmSearch,onInput:e=>{ST.frmSearch=e.target.value;render();}})));
+  wrap.appendChild(h("div",{className:"mb16 flex gap12 items-c"},
+    h("input",{className:"inp",style:{flex:1},placeholder:"Search by product code, name, or version note...",value:ST.frmSearch,onInput:e=>{ST.frmSearch=e.target.value;render();}}),
+    ST.frmSelMode?h("button",{className:"btn btn-s",style:{fontSize:11,padding:"6px 12px",whiteSpace:"nowrap"},onClick:()=>{const allSel=fil.every(f=>ST.frmSel[f.id]);fil.forEach(f=>ST.frmSel[f.id]=!allSel);render();}},fil.every(f=>ST.frmSel[f.id])?"Deselect All":"Select All"):null
+  ));
   if(Object.keys(groups).length===0)wrap.appendChild(h("div",{className:"card text-c",style:{padding:"50px 0"}},h("div",{className:"c4"},ST.frmSearch?"No matches":"No formulas yet")));
   else Object.entries(groups).forEach(([key,versions])=>{
     const first=versions[0];const hasMultiple=versions.length>1;
@@ -866,37 +914,44 @@ function renderFormulas(){
         )
       ),
       h("div",{className:"flex gap8 items-c",onClick:e=>e.stopPropagation()},
-        h("button",{className:"btn btn-s",style:{fontSize:11,padding:"4px 10px"},title:"New version from latest",onClick:()=>{
+        !ST.frmSelMode?h("button",{className:"btn btn-s",style:{fontSize:11,padding:"4px 10px"},title:"New version from latest",onClick:()=>{
           const latest=versions[versions.length-1];const nv=Math.max(...versions.map(v=>v.version||1))+1;
-          ST.frmEdit={...latest,id:"f"+Date.now(),version:nv,versionNote:"",active:false,ingredients:latest.ingredients.map(r=>({...r})),createdAt:new Date().toISOString().slice(0,10),updatedAt:new Date().toISOString().slice(0,10)};ST.frmView="edit";render();
-        }},"➕ New Version"),
+          ST.frmEdit={...latest,id:"f"+Date.now(),version:nv,versionNote:"",active:false,sensory:latest.sensory?{...latest.sensory}:{},ingredients:latest.ingredients.map(r=>({...r})),createdAt:new Date().toISOString().slice(0,10),updatedAt:new Date().toISOString().slice(0,10)};ST.frmView="edit";render();
+        }},"➕ New Version"):null,
         hasMultiple?h("button",{className:"abtn c4",style:{fontSize:16}},expanded?"▼":"▶"):null
       )
     );
     card.appendChild(header);
     // Version rows
-    const versionsToShow=hasMultiple?(expanded?versions:[versions.find(v=>v.active)||versions[versions.length-1]]):versions;
+    const versionsToShow=ST.frmSelMode?versions:hasMultiple?(expanded?versions:[versions.find(v=>v.active)||versions[versions.length-1]]):versions;
     versionsToShow.forEach(f=>{
       const tc=f.ingredients.reduce((s,r)=>s+((+r.qty||0)*getIngPrice(r.itemCode)),0);
       const tp=f.ingredients.reduce((s,r)=>s+(+r.pct||0),0);
       const tq=f.ingredients.reduce((s,r)=>s+(+r.qty||0),0);
       const cpk=tq>0?tc/tq:0;
-      const vRow=h("div",{style:{padding:"10px 14px",marginTop:8,borderRadius:8,border:"1px solid "+(f.active?"rgba(52,211,153,.25)":"rgba(180,120,60,.1)"),background:f.active?"rgba(52,211,153,.05)":"rgba(30,15,5,.15)",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"},onClick:()=>{ST.frmEdit={...f,inputMode:f.inputMode||"kg",ingredients:f.ingredients.map(r=>({...r}))};ST.frmView="edit";render();}},
+      const isChecked=ST.frmSelMode&&ST.frmSel[f.id];
+      const vRow=h("div",{style:{padding:"10px 14px",marginTop:8,borderRadius:8,border:"1px solid "+(isChecked?"rgba(251,191,36,.4)":f.active?"rgba(52,211,153,.25)":"rgba(180,120,60,.1)"),background:isChecked?"rgba(251,191,36,.08)":f.active?"rgba(52,211,153,.05)":"rgba(30,15,5,.15)",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"},
+        onClick:e=>{
+          if(ST.frmSelMode){ST.frmSel[f.id]=!ST.frmSel[f.id];render();return;}
+          ST.frmEdit={...f,inputMode:f.inputMode||"kg",sensory:f.sensory?{...f.sensory}:{},ingredients:f.ingredients.map(r=>({...r}))};ST.frmView="edit";render();
+        }},
+        ST.frmSelMode?h("div",{style:{width:24,height:24,borderRadius:6,border:"2px solid "+(isChecked?"#fbbf24":"rgba(180,120,60,.3)"),background:isChecked?"#fbbf24":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},isChecked?h("span",{style:{color:"#1a0f0a",fontWeight:700,fontSize:14}},"✓"):null):null,
         h("div",{className:"flex gap12 items-c wrap",style:{flex:1,minWidth:0}},
           h("span",{className:"fw6 fs13",style:{color:f.active?"#34d399":"#fbbf24"}},"V"+(f.version||1)),
           f.active?h("span",{style:{fontSize:10,background:"rgba(52,211,153,.2)",color:"#34d399",padding:"2px 8px",borderRadius:8,fontWeight:600}},"ACTIVE"):null,
           f.versionNote?h("span",{className:"c5 fs12"},"— "+f.versionNote):null,
           f.notes?h("span",{className:"fs12",style:{color:"#60a5fa"}},"📝"):null,
+          f.sensory&&Object.values(f.sensory).some(v=>v)?h("span",{className:"fs12",style:{color:"#a78bfa"}},"🧪"):null,
           h("span",{className:"fs12 c4"},"Items: "+f.ingredients.filter(r=>r.itemCode).length),
           h("span",{className:"fs12 "+(Math.abs(tp-100)<.1?"cg":"co")},tp.toFixed(1)+"%"),
           h("span",{className:"fs12 c3 mono fw6"},"Cost/KG: "+cpk.toFixed(2)),
           h("span",{className:"fs12 c5"},f.updatedAt||"")
         ),
-        h("div",{className:"flex gap4",onClick:e=>e.stopPropagation()},
+        !ST.frmSelMode?h("div",{className:"flex gap4",onClick:e=>e.stopPropagation()},
           !f.active?h("button",{className:"abtn",title:"Set Active",style:{color:"#34d399",fontSize:14},onClick:async()=>{for(const v of versions){v.active=false;await dbSetActive(v.id,false);}f.active=true;await dbSetActive(f.id,true);flash("V"+(f.version||1)+" set as Active");render();}},"✅"):null,
-          h("button",{className:"abtn",title:"Edit",style:{color:"#60a5fa"},onClick:()=>{ST.frmEdit={...f,inputMode:f.inputMode||"kg",ingredients:f.ingredients.map(r=>({...r}))};ST.frmView="edit";render();}},"✏️"),
+          h("button",{className:"abtn",title:"Edit",style:{color:"#60a5fa"},onClick:()=>{ST.frmEdit={...f,inputMode:f.inputMode||"kg",sensory:f.sensory?{...f.sensory}:{},ingredients:f.ingredients.map(r=>({...r}))};ST.frmView="edit";render();}},"✏️"),
           h("button",{className:"abtn cr",title:"Delete",onClick:()=>{ST.confirm={msg:`Delete V${f.version||1} of "${f.productCode}"?`,action:async()=>{await dbDeleteFrm(f.id);ST.frms=ST.frms.filter(x=>x.id!==f.id);flash("Deleted");render();}};render();}},"🗑️")
-        )
+        ):null
       );
       card.appendChild(vRow);
     });
@@ -917,7 +972,7 @@ function renderFrmEditor(){
   wrap.appendChild(h("div",{className:"flex between items-c mb24"},
     h("div",{className:"flex gap12 items-c"},
       h("button",{className:"abtn c4",onClick:()=>{ST.frmView="list";render();}},"← Back"),
-      h("div",null,h("div",{className:"fs22 fw7 c1"},(f.productCode?"Edit":"New")+" Formula"+(f.version?" — V"+f.version:"")),h("div",{className:"c4 fs13"},ST.user.name))
+      h("div",null,h("div",{className:"fs22 fw7 c1"},(f.productCode?"Edit":"New")+" Formula"+(f.version?" — V"+f.version:"")),h("div",{className:"c4 fs13"},ST.user.name+(f.updatedAt?" · Last updated: "+f.updatedAt:"")))
     ),
     h("button",{className:"btn btn-p",onClick:saveFrmEdit},"💾 Save")
   ));
@@ -1058,6 +1113,76 @@ function renderFrmEditor(){
       value:f.notes||"",placeholder:"e.g. Mix dry ingredients first for 5 min at low speed...\nAdd liquid slowly while mixing at medium speed...\nBlend for 10 min until uniform color achieved...",
       onInput:e=>{f.notes=e.target.value;}})
   ));
+  // Sensory Feedback section
+  const sensory=f.sensory||{};
+  const sCard=h("div",{className:"card mb24"});
+  sCard.appendChild(h("div",{className:"lbl mb16"},"🧪 Sensory Feedback ",h("span",{className:"c5",style:{textTransform:"none"}},"(optional)")));
+  // Image upload
+  const imgWrap=h("div",{style:{marginBottom:20}});
+  imgWrap.appendChild(h("div",{className:"fs12 c4 mb8",style:{fontWeight:600}},"📷 Product Image"));
+  if(sensory.imageUrl){
+    const imgPreview=h("div",{style:{display:"flex",gap:12,alignItems:"flex-start",marginBottom:8}});
+    imgPreview.appendChild(h("img",{src:sensory.imageUrl,style:{maxWidth:200,maxHeight:200,objectFit:"contain",borderRadius:10,border:"1px solid rgba(180,120,60,.2)"}}));
+    imgPreview.appendChild(h("button",{className:"abtn cr fs12",onClick:()=>{sensory.imageUrl="";render();}},"✕ Remove"));
+    imgWrap.appendChild(imgPreview);
+  }
+  imgWrap.appendChild(h("input",{type:"file",accept:"image/*",className:"fs12 c4",style:{maxWidth:260},
+    onChange:async e=>{
+      const file=e.target.files?.[0];if(!file)return;
+      if(file.size>5*1024*1024){flash("Image must be under 5MB");return;}
+      // Resize image using canvas
+      const resizeImg=(file,maxW,maxH,quality)=>new Promise((resolve)=>{
+        const reader=new FileReader();
+        reader.onload=ev=>{
+          const img=new Image();
+          img.onload=()=>{
+            let w=img.width,ht=img.height;
+            if(w>maxW||ht>maxH){const ratio=Math.min(maxW/w,maxH/ht);w=Math.round(w*ratio);ht=Math.round(ht*ratio);}
+            const canvas=document.createElement("canvas");canvas.width=w;canvas.height=ht;
+            const ctx=canvas.getContext("2d");ctx.drawImage(img,0,0,w,ht);
+            resolve(canvas.toDataURL("image/jpeg",quality||0.7));
+          };
+          img.src=ev.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+      const resized=await resizeImg(file,800,800,0.7);
+      sensory.imageUrl=resized;f.sensory=sensory;render();
+    }}));
+  sCard.appendChild(imgWrap);
+  // Sensory fields grid
+  const sFields=[
+    {key:"texture",label:"Texture",icon:"🤏",placeholder:"e.g. Fine powder, slightly gritty, smooth..."},
+    {key:"appearance",label:"Appearance",icon:"👁️",placeholder:"e.g. Dark red, uniform color, no lumps..."},
+    {key:"taste",label:"Taste",icon:"👅",placeholder:"e.g. Mildly spicy, balanced salt, sweet finish..."},
+    {key:"aroma",label:"Aroma",icon:"👃",placeholder:"e.g. Strong paprika, hint of cumin, earthy..."},
+    {key:"size",label:"Size / Granulation",icon:"📏",placeholder:"e.g. 40 mesh, fine grind, 2-3mm flakes..."},
+  ];
+  const sGrid=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}});
+  sFields.forEach(sf=>{
+    sGrid.appendChild(h("div",null,
+      h("div",{className:"fs12 c4 mb4",style:{fontWeight:600}},sf.icon+" "+sf.label),
+      h("input",{id:"fe-s-"+sf.key,className:"inp fs12",value:sensory[sf.key]||"",placeholder:sf.placeholder,
+        onInput:e=>{sensory[sf.key]=e.target.value;f.sensory=sensory;}})
+    ));
+  });
+  sCard.appendChild(sGrid);
+  // Large text fields
+  const sTextFields=[
+    {key:"internalFeedback",label:"Internal Team Feedback",icon:"🏢",placeholder:"e.g. Production team notes: runs well in mixer, no clumping..."},
+    {key:"customerFeedback",label:"Customer Feedback",icon:"💬",placeholder:"e.g. Customer A: preferred less salt. Customer B: approved sample..."},
+    {key:"others",label:"Others",icon:"📋",placeholder:"Any additional sensory notes..."},
+  ];
+  sTextFields.forEach(sf=>{
+    sCard.appendChild(h("div",{style:{marginBottom:12}},
+      h("div",{className:"fs12 c4 mb4",style:{fontWeight:600}},sf.icon+" "+sf.label),
+      h("textarea",{id:"fe-s-"+sf.key,className:"inp fs12",style:{minHeight:60,resize:"vertical",lineHeight:"1.5",fontFamily:"inherit"},
+        value:sensory[sf.key]||"",placeholder:sf.placeholder,
+        onInput:e=>{sensory[sf.key]=e.target.value;f.sensory=sensory;}})
+    ));
+  });
+  wrap.appendChild(sCard);
+
   wrap.appendChild(h("div",{id:"fe-err",className:"err mb16"}));
   wrap.appendChild(h("div",{className:"flex gap12",style:{justifyContent:"flex-end"}},
     h("button",{className:"btn btn-s",onClick:()=>{ST.frmView="list";render();}},"Cancel"),
@@ -1094,6 +1219,12 @@ async function saveFrmEdit(){
   f.productName=(document.getElementById("fe-pn")?.value||f.productName).trim();
   f.versionNote=(document.getElementById("fe-vn")?.value||"").trim();
   f.notes=(document.getElementById("fe-notes")?.value||"").trim();
+  // Collect sensory fields from DOM
+  const sKeys=["texture","appearance","taste","aroma","size"];
+  const sTKeys=["internalFeedback","customerFeedback","others"];
+  if(!f.sensory)f.sensory={};
+  sKeys.forEach(k=>{const el=document.getElementById("fe-s-"+k);if(el)f.sensory[k]=el.value.trim();});
+  sTKeys.forEach(k=>{const el=document.getElementById("fe-s-"+k);if(el)f.sensory[k]=el.value.trim();});
   if(!f.productCode)return document.getElementById("fe-err").textContent="Product Code required";
   if(!f.productName)return document.getElementById("fe-err").textContent="Product Name required";
   if(!f.batchSize||f.batchSize<=0)return document.getElementById("fe-err").textContent="Batch Size must be > 0";
@@ -1107,10 +1238,58 @@ async function saveFrmEdit(){
   flash("Saved — V"+(f.version||1));ST.frmView="list";render();
 }
 
+function buildExportRows(formulas){
+  const rows=[];
+  formulas.forEach(f=>{
+    const s=f.sensory||{};
+    const tq=f.ingredients.reduce((sum,r)=>sum+(+r.qty||0),0);
+    const tc=f.ingredients.reduce((sum,r)=>sum+((+r.qty||0)*getIngPrice(r.itemCode)),0);
+    const cpk=tq>0?tc/tq:0;
+    const ings=f.ingredients.filter(r=>r.itemCode);
+    if(ings.length===0)ings.push({itemCode:"",qty:0,pct:0});
+    ings.forEach((ig,idx)=>{
+      const ingName=getIngName(ig.itemCode);
+      const ingPrice=getIngPrice(ig.itemCode);
+      const lineCost=(+ig.pct||0)/100*ingPrice;
+      const row={"Product Code":f.productCode,"Product Name":f.productName,"Version":f.version||1,"Version Note":f.versionNote||"","Active":f.active?"Yes":"No","Batch Size (kg)":f.batchSize,"Input Mode":f.inputMode||"kg",
+        "Item Code":ig.itemCode,"Item Name":ingName,"Qty (kg)":+(+ig.qty).toFixed(4)||0,"%":+(+ig.pct).toFixed(4)||0,"Price/KG":+(ingPrice).toFixed(4)||0,"Line Cost/KG":+(lineCost).toFixed(4)||0};
+      if(idx===0){
+        row["Total Cost/KG"]=+(cpk).toFixed(4)||0;
+        row["Mixing Instructions"]=f.notes||"";
+        row["Texture"]=s.texture||"";row["Appearance"]=s.appearance||"";row["Taste"]=s.taste||"";row["Aroma"]=s.aroma||"";row["Size/Granulation"]=s.size||"";
+        row["Internal Feedback"]=s.internalFeedback||"";row["Customer Feedback"]=s.customerFeedback||"";row["Others"]=s.others||"";
+        // Skip base64 images, only include real URLs
+        const imgUrl=s.imageUrl||"";
+        row["Image URL"]=imgUrl.startsWith("data:")?("(image uploaded)"):imgUrl;
+        row["Created"]=f.createdAt||"";row["Updated"]=f.updatedAt||"";
+      }else{
+        row["Total Cost/KG"]="";row["Mixing Instructions"]="";
+        row["Texture"]="";row["Appearance"]="";row["Taste"]="";row["Aroma"]="";row["Size/Granulation"]="";
+        row["Internal Feedback"]="";row["Customer Feedback"]="";row["Others"]="";row["Image URL"]="";
+        row["Created"]="";row["Updated"]="";
+      }
+      rows.push(row);
+    });
+  });
+  return rows;
+}
 function exportFrms(){
-  const myF=ST.frms.filter(f=>f.createdBy===ST.user.id);const rows=[];
-  myF.forEach(f=>f.ingredients.forEach(ig=>rows.push({"Product Code":f.productCode,"Product Name":f.productName,"Version":f.version||1,"Version Note":f.versionNote||"","Active":f.active?"Yes":"No","Batch Size (kg)":f.batchSize,"Item Code":ig.itemCode,"Qty (kg)":+(+ig.qty).toFixed(4)||0,"%":+(+ig.pct).toFixed(4)||0})));
-  const ws=XLSX.utils.json_to_sheet(rows);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Formulas");XLSX.writeFile(wb,"SpiceCalc_Formulas.xlsx");flash("Exported");
+  try{
+    const myF=ST.frms.filter(f=>f.createdBy===ST.user.id);
+    const rows=buildExportRows(myF);
+    if(!rows.length)return flash("No data to export");
+    const ws=XLSX.utils.json_to_sheet(rows);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Formulas");XLSX.writeFile(wb,"SpiceCalc_Formulas.xlsx");flash("Exported");
+  }catch(e){console.error("Export error",e);flash("Export failed: "+e.message);}
+}
+function exportFrmsSelected(){
+  try{
+    const selIds=Object.entries(ST.frmSel||{}).filter(([k,v])=>v).map(([k])=>k);
+    if(!selIds.length)return flash("No formulas selected");
+    const selF=ST.frms.filter(f=>selIds.includes(f.id));
+    const rows=buildExportRows(selF);
+    if(!rows.length)return flash("No data to export");
+    const ws=XLSX.utils.json_to_sheet(rows);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Formulas");XLSX.writeFile(wb,"SpiceCalc_Formulas_Selected.xlsx");flash("Exported "+selF.length+" formula"+(selF.length>1?"s":""));
+  }catch(e){console.error("Export error",e);flash("Export failed: "+e.message);}
 }
 function importFrms(e){
   const file=e.target.files?.[0];if(!file)return;const r=new FileReader();
@@ -1124,5 +1303,6 @@ function importFrms(e){
 /* ─── Init ─── */
 init();
 </script>
-</body>
-</html>
+
+
+</body></html>
