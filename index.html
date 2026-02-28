@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SpiceCalc</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<!-- saved from url=(0051)file:///C:/Users/Hexa%20IoT/Downloads/index_11.html -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SpiceCalc by Hexafood</title>
+<script src="./index_files/xlsx.full.min.js.download"></script>
+<script src="./index_files/supabase.min.js.download"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:system-ui,-apple-system,sans-serif;background:linear-gradient(145deg,#1a0f0a,#2d1810,#1a120d);color:#fef3c7;min-height:100vh;display:flex;flex-direction:column}
@@ -71,7 +71,7 @@ tr:hover{background:rgba(120,53,15,.1)}
 </style>
 </head>
 <body>
-<div id="app"></div>
+<div id="app"><div class="hdr"><div class="hdr-l"><div class="logo">🌶️</div><div><div class="hdr-t">SpiceCalc</div><div class="hdr-s">BY HEXAFOOD</div></div></div><div class="hdr-r"><span style="padding: 3px 8px; background: rgba(52, 211, 153, 0.15); color: rgb(52, 211, 153); border: 1px solid rgba(52, 211, 153, 0.2);">● DB Connected</span><span class="usr-badge">0 ⭐</span><button class="btn btn-s" style="padding: 6px 12px;">⚙️ Admin</button><button class="btn btn-s" style="padding: 6px 12px;">🔒 Lock</button></div></div><div class="nav"><button class="tab">📦 Ingredients 🔒</button><button class="tab">🧪 Formulas</button><button class="tab">🧮 Costing</button><button class="tab">📊 Batch</button></div><div class="main"><div><div class="flex between items-c mb24"><div><div class="fs22 fw7 c1">Admin Panel</div><div class="c4 fs14 mt8">Manage users &amp; PINs</div></div><button class="btn btn-s">← Back</button></div><div class="card mb24"><div class="fs14 fw6 c2 mb16">📦 Section 1 — Ingredients PIN</div><div class="flex gap12 items-c"><span class="mono fs18 c3" id="s1-display">100100</span><button class="btn btn-s" style="padding: 4px 12px;">Change</button></div></div><div class="card"><div class="fs14 fw6 c2 mb16">👥 Section 2, 3 &amp; 4 — Users</div><div class="flex between items-c" style="border: 1px solid rgba(180, 120, 60, 0.12); background: rgba(30, 15, 5, 0.15);"><div class="flex gap12 items-c"><div style="border-radius: 50%; background: rgba(120, 53, 15, 0.4); display: flex; align-items: center; justify-content: center; color: rgb(251, 191, 36); font-weight: 700;">1</div><div><div class="c1 fw6 fs14">0</div><div class="c4 fs12">Admin</div></div></div><div class="flex gap8 items-c"><span class="mono fs13 c3">105601</span><button class="btn btn-s" style="padding: 3px 10px;">Edit</button></div></div><div class="flex between items-c" style="border: 1px solid rgba(180, 120, 60, 0.12); background: rgba(30, 15, 5, 0.15);"><div class="flex gap12 items-c"><div style="border-radius: 50%; background: rgba(120, 53, 15, 0.4); display: flex; align-items: center; justify-content: center; color: rgb(251, 191, 36); font-weight: 700;">2</div><div><div class="c1 fw6 fs14">252525</div><div class="c4 fs12">User</div></div></div><div class="flex gap8 items-c"><span class="mono fs13 c3">252525</span><button class="btn btn-s" style="padding: 3px 10px;">Edit</button></div></div><div class="flex between items-c" style="border: 1px solid rgba(180, 120, 60, 0.12); background: rgba(30, 15, 5, 0.15);"><div class="flex gap12 items-c"><div style="border-radius: 50%; background: rgba(120, 53, 15, 0.4); display: flex; align-items: center; justify-content: center; color: rgb(251, 191, 36); font-weight: 700;">3</div><div><div class="c1 fw6 fs14">363636</div><div class="c4 fs12">User</div></div></div><div class="flex gap8 items-c"><span class="mono fs13 c3">363636</span><button class="btn btn-s" style="padding: 3px 10px;">Edit</button></div></div><div class="flex between items-c" style="border: 1px solid rgba(180, 120, 60, 0.12); background: rgba(30, 15, 5, 0.15);"><div class="flex gap12 items-c"><div style="border-radius: 50%; background: rgba(120, 53, 15, 0.4); display: flex; align-items: center; justify-content: center; color: rgb(251, 191, 36); font-weight: 700;">4</div><div><div class="c1 fw6 fs14">User 4</div><div class="c4 fs12">User</div></div></div><div class="flex gap8 items-c"><span class="mono fs13 c3">444444</span><button class="btn btn-s" style="padding: 3px 10px;">Edit</button></div></div><div class="flex between items-c" style="border: 1px solid rgba(180, 120, 60, 0.12); background: rgba(30, 15, 5, 0.15);"><div class="flex gap12 items-c"><div style="border-radius: 50%; background: rgba(120, 53, 15, 0.4); display: flex; align-items: center; justify-content: center; color: rgb(251, 191, 36); font-weight: 700;">5</div><div><div class="c1 fw6 fs14">User 5</div><div class="c4 fs12">User</div></div></div><div class="flex gap8 items-c"><span class="mono fs13 c3">555555</span><button class="btn btn-s" style="padding: 3px 10px;">Edit</button></div></div></div><div class="card mt24"><div class="fs14 fw6 c2 mb8">💾 Database Backup</div><div class="c5 fs12 mb16">Export all data as Excel file with multiple sheets. Use this for regular backups.</div><div class="flex gap12 wrap"><button class="btn btn-p">⬇ Backup All (Excel)</button><button class="btn btn-s">⬇ Backup All (CSV)</button></div><div class="mt16" style="display: grid; grid-template-columns: repeat(3, 1fr);"><div style="padding: 8px 12px; background: rgba(30, 15, 5, 0.2); border: 1px solid rgba(180, 120, 60, 0.1);"><div class="c5 fs11">Config</div><div class="c2 fw6 fs16 mono">1</div></div><div style="padding: 8px 12px; background: rgba(30, 15, 5, 0.2); border: 1px solid rgba(180, 120, 60, 0.1);"><div class="c5 fs11">Users</div><div class="c2 fw6 fs16 mono">5</div></div><div style="padding: 8px 12px; background: rgba(30, 15, 5, 0.2); border: 1px solid rgba(180, 120, 60, 0.1);"><div class="c5 fs11">Ingredients</div><div class="c2 fw6 fs16 mono">5</div></div><div style="padding: 8px 12px; background: rgba(30, 15, 5, 0.2); border: 1px solid rgba(180, 120, 60, 0.1);"><div class="c5 fs11">Formulas</div><div class="c2 fw6 fs16 mono">0</div></div><div style="padding: 8px 12px; background: rgba(30, 15, 5, 0.2); border: 1px solid rgba(180, 120, 60, 0.1);"><div class="c5 fs11">Formula Items</div><div class="c2 fw6 fs16 mono">0</div></div><div style="padding: 8px 12px; background: rgba(30, 15, 5, 0.2); border: 1px solid rgba(180, 120, 60, 0.1);"><div class="c5 fs11">Costings</div><div class="c2 fw6 fs16 mono">0</div></div></div></div></div></div><div class="ftr"><span>SpiceCalc by Hexafood v1.0</span><span>Created by Hexafood · <a href="https://www.hexaiot.com.my/" target="_blank">www.hexaiot.com.my</a></span><span>Auto-locks after 30 min</span></div></div>
 <script>
 const h=(t,p,...c)=>{if(typeof t==="function")return t(p||{},...c);const e=document.createElement(t);if(p)Object.entries(p).forEach(([k,v])=>{if(k==="style"&&typeof v==="object")Object.assign(e.style,v);else if(k.startsWith("on"))e.addEventListener(k.slice(2).toLowerCase(),v);else if(k==="className")e.className=v;else if(k==="value")e.value=v;else if(k==="disabled")e.disabled=v;else if(k==="checked")e.checked=v;else if(k==="selected")e.selected=v;else if(k==="type")e.type=v;else if(k==="placeholder")e.placeholder=v;else if(k==="maxLength")e.maxLength=v;else if(k==="innerHTML")e.innerHTML=v;else if(k==="htmlFor")e.htmlFor=v;else if(k==="autofocus")setTimeout(()=>e.focus(),50);else e.setAttribute(k,v);});c.flat(9).forEach(ch=>{if(ch==null||ch===false)return;if(typeof ch==="string"||typeof ch==="number")e.appendChild(document.createTextNode(ch));else if(ch instanceof Node)e.appendChild(ch);});return e;};
 
@@ -241,7 +241,7 @@ function unlockUser(){
 /* ─── Header ─── */
 function renderHeader(){
   return h("div",{className:"hdr"},
-    h("div",{className:"hdr-l"},h("div",{className:"logo"},"🌶️"),h("div",null,h("div",{className:"hdr-t"},"SpiceCalc"),h("div",{className:"hdr-s"},"SEASONING COSTING SYSTEM"))),
+    h("div",{className:"hdr-l"},h("div",{className:"logo"},"🌶️"),h("div",null,h("div",{className:"hdr-t"},"SpiceCalc"),h("div",{className:"hdr-s"},"BY HEXAFOOD"))),
     h("div",{className:"hdr-r"},
       h("span",{style:{fontSize:10,padding:"3px 8px",borderRadius:8,background:ST.dbOk?"rgba(52,211,153,.15)":"rgba(239,68,68,.15)",color:ST.dbOk?"#34d399":"#f87171",border:"1px solid "+(ST.dbOk?"rgba(52,211,153,.2)":"rgba(239,68,68,.2)")}},ST.dbOk?"● DB Connected":"● DB Offline"),
       ST.user?h("span",{className:"usr-badge"},ST.user.name+(ST.user.role==="admin"?" ⭐":"")):null,
@@ -261,7 +261,7 @@ function renderNav(){
 
 /* ─── Footer ─── */
 function renderFooter(){
-  return h("div",{className:"ftr"},h("span",null,"SpiceCalc v1.0"),h("span",{innerHTML:'Created by PandoraAI · <a href="https://www.hexaiot.com.my" target="_blank">www.hexaiot.com.my</a>'}),h("span",null,"Auto-locks after 30 min"));
+  return h("div",{className:"ftr"},h("span",null,"SpiceCalc by Hexafood v1.0"),h("span",{innerHTML:'Created by Hexafood · <a href="https://www.hexaiot.com.my" target="_blank">www.hexaiot.com.my</a>'}),h("span",null,"Auto-locks after 30 min"));
 }
 
 /* ─── PIN Screen ─── */
@@ -676,7 +676,7 @@ function exportBatchPDF(f){
 <style>@media print{body{margin:0}@page{margin:15mm 12mm}}</style></head>
 <body style="font-family:system-ui,-apple-system,sans-serif;max-width:800px;margin:0 auto;padding:20px;color:#1f2937">
 <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #d97706;padding-bottom:16px;margin-bottom:24px">
-<div><div style="font-size:28px;font-weight:800;color:#92400e">🌶️ SpiceCalc</div><div style="font-size:11px;color:#b45309;letter-spacing:2px;text-transform:uppercase">Batch Production Sheet</div></div>
+<div><div style="font-size:28px;font-weight:800;color:#92400e">🌶️ SpiceCalc by Hexafood</div><div style="font-size:11px;color:#b45309;letter-spacing:2px;text-transform:uppercase">Batch Production Sheet</div></div>
 <div style="text-align:right"><div style="font-size:13px;color:#6b7280">Date: <b style="color:#1f2937">${now}</b></div><div style="font-size:13px;color:#6b7280">Prepared by: <b style="color:#1f2937">${ST.user.name}</b></div></div>
 </div>
 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px">
@@ -703,7 +703,7 @@ html+='</table></div>';return html;})()}
 <div><div style="font-size:10px;color:#9ca3af;margin-bottom:24px">Checked by:</div><div style="border-bottom:1px solid #d1d5db"></div></div>
 <div><div style="font-size:10px;color:#9ca3af;margin-bottom:24px">Approved by:</div><div style="border-bottom:1px solid #d1d5db"></div></div>
 </div>
-<div style="margin-top:24px;text-align:center;font-size:10px;color:#9ca3af">Generated by SpiceCalc · Created by PandoraAI · www.hexaiot.com.my</div>
+<div style="margin-top:24px;text-align:center;font-size:10px;color:#9ca3af">Generated by SpiceCalc by Hexafood · www.hexaiot.com.my</div>
 </body></html>`;
 
   const win=window.open("","_blank");
@@ -760,6 +760,59 @@ function renderAdmin(){
     ));
   });
   wrap.appendChild(uCard);
+  // Database Backup
+  const bkCard=h("div",{className:"card mt24"});
+  bkCard.appendChild(h("div",{className:"fs14 fw6 c2 mb8"},"💾 Database Backup"));
+  bkCard.appendChild(h("div",{className:"c5 fs12 mb16"},"Export all data as Excel file with multiple sheets. Use this for regular backups."));
+  bkCard.appendChild(h("div",{className:"flex gap12 wrap"},
+    h("button",{className:"btn btn-p",onClick:async()=>{
+      try{
+        flash("Preparing backup...");
+        // Fetch all tables
+        const{data:cfg}=await sb.from("config").select("*");
+        const{data:usr}=await sb.from("users").select("*").order("slot");
+        const{data:ing}=await sb.from("ingredients").select("*").order("item_code");
+        const{data:frm}=await sb.from("formulas").select("*").order("product_code,version");
+        const{data:fi}=await sb.from("formula_ingredients").select("*");
+        const{data:cst}=await sb.from("costings").select("*");
+        // Build workbook
+        const wb=XLSX.utils.book_new();
+        if(cfg)XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(cfg),"Config");
+        if(usr)XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(usr),"Users");
+        if(ing)XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(ing),"Ingredients");
+        if(frm)XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(frm),"Formulas");
+        if(fi)XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(fi),"Formula_Ingredients");
+        if(cst)XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(cst),"Costings");
+        const d=new Date().toISOString().slice(0,10);
+        XLSX.writeFile(wb,"SpiceCalc_Backup_"+d+".xlsx");
+        flash("Backup complete — 6 sheets exported");
+      }catch(e){console.error(e);flash("Backup failed: "+e.message);}
+    }},"⬇ Backup All (Excel)"),
+    h("button",{className:"btn btn-s",onClick:async()=>{
+      try{
+        flash("Preparing CSV backup...");
+        const tables=["config","users","ingredients","formulas","formula_ingredients","costings"];
+        for(const t of tables){
+          const{data}=await sb.from(t).select("*");
+          if(data&&data.length){
+            const ws=XLSX.utils.json_to_sheet(data);
+            const csv=XLSX.utils.sheet_to_csv(ws);
+            const blob=new Blob([csv],{type:"text/csv"});
+            const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="SpiceCalc_"+t+".csv";a.click();
+          }
+        }
+        flash("6 CSV files downloaded");
+      }catch(e){console.error(e);flash("Backup failed: "+e.message);}
+    }},"⬇ Backup All (CSV)")
+  ));
+  const stats=h("div",{className:"mt16",style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}});
+  [["Config",ST.s1pin?"1":"0"],["Users",ST.users.length],["Ingredients",ST.ings.length],["Formulas",ST.frms.length],["Formula Items",ST.frms.reduce((s,f)=>s+f.ingredients.filter(r=>r.itemCode).length,0)],["Costings",ST.csts.length]].forEach(([label,cnt])=>{
+    stats.appendChild(h("div",{style:{padding:"8px 12px",borderRadius:6,background:"rgba(30,15,5,.2)",border:"1px solid rgba(180,120,60,.1)"}},
+      h("div",{className:"c5 fs11"},label),h("div",{className:"c2 fw6 fs16 mono"},String(cnt))
+    ));
+  });
+  bkCard.appendChild(stats);
+  wrap.appendChild(bkCard);
   return wrap;
 }
 
@@ -795,12 +848,32 @@ function renderIngredients(){
   const tbody=h("tbody");
   if(paged.length===0)tbody.appendChild(h("tr",null,h("td",{colSpan:6,className:"text-c c5",style:{padding:"40px 0"}},ST.ingSearch?"No matches":"No ingredients yet")));
   else paged.forEach(it=>{
+    // Inline editable Name cell
+    const nameCell=h("td",{className:"c3",style:{cursor:"pointer",minWidth:120},title:"Click to edit",
+      onClick:e=>{
+        if(e.target.tagName==="INPUT")return;
+        const td=e.currentTarget;td.innerHTML="";
+        const inp=h("input",{className:"inp fs12",value:it.itemName||"",style:{padding:"4px 8px",margin:"-4px 0"},autofocus:true});
+        inp.addEventListener("blur",async()=>{const nv=inp.value.trim();if(nv!==it.itemName){it.itemName=nv;await dbSaveIng(it);flash("Name updated");}render();});
+        inp.addEventListener("keydown",e=>{if(e.key==="Enter")inp.blur();if(e.key==="Escape")render();});
+        td.appendChild(inp);
+      }},it.itemName||"—");
+    // Inline editable Price cell
+    const priceCell=h("td",{className:"mono c2 fw6 text-r",style:{cursor:"pointer",minWidth:80},title:"Click to edit",
+      onClick:e=>{
+        if(e.target.tagName==="INPUT")return;
+        const td=e.currentTarget;td.innerHTML="";
+        const inp=h("input",{className:"inp fs12 mono",type:"number",step:"0.01",min:"0",value:(+it.pricePerKg).toFixed(2),style:{padding:"4px 8px",margin:"-4px 0",textAlign:"right",width:90},autofocus:true});
+        inp.addEventListener("blur",async()=>{const nv=+inp.value;if(!isNaN(nv)&&nv>=0&&nv!==it.pricePerKg){it.pricePerKg=nv;await dbSaveIng(it);flash("Price updated");}render();});
+        inp.addEventListener("keydown",e=>{if(e.key==="Enter")inp.blur();if(e.key==="Escape")render();});
+        td.appendChild(inp);
+      }},(+it.pricePerKg).toFixed(2));
     tbody.appendChild(h("tr",null,
       h("td",{className:"mono c2 fw6"},it.itemCode),
-      h("td",{className:"c3"},it.itemName||"—"),
+      nameCell,
       h("td",{className:"c5"},it.description||"—"),
       h("td",{className:"c5"},it.packagingSize||"—"),
-      h("td",{className:"mono c2 fw6 text-r"},(+it.pricePerKg).toFixed(2)),
+      priceCell,
       h("td",{className:"text-r"},
         h("button",{className:"abtn",title:"Copy",onClick:()=>{ST.ingForm={itemCode:it.itemCode+"_COPY",itemName:it.itemName||"",description:it.description||"",packagingSize:it.packagingSize||"",pricePerKg:it.pricePerKg};ST.ingEdit=null;render();}},"📋"),
         h("button",{className:"abtn cb",title:"Edit",onClick:()=>{ST.ingForm={...it};ST.ingEdit=it;render();}},"✏️"),
@@ -887,7 +960,8 @@ function renderFormulas(){
     h("div",null,h("div",{className:"fs22 fw7 c1"},"Formula Builder"),h("div",{className:"c4 fs14 mt8"},totalFormulas+" version"+(totalFormulas!==1?"s":"")+" · "+uniqueProducts+" product"+(uniqueProducts!==1?"s":"")+" · "+ST.user.name)),
     h("div",{className:"flex gap8 wrap"},
       h("button",{className:"btn btn-p",onClick:()=>{ST.frmEdit={id:"f"+Date.now(),productCode:"",productName:"",batchSize:100,version:1,versionNote:"",active:true,inputMode:"kg",sensory:{},ingredients:[{itemCode:"",qty:0,pct:0}],createdBy:ST.user.id,createdAt:new Date().toISOString().slice(0,10),updatedAt:new Date().toISOString().slice(0,10)};ST.frmView="edit";render();}},"➕ New Formula"),
-      ST.frmSelMode?h("button",{className:"btn btn-p",onClick:()=>{const cnt=Object.values(ST.frmSel).filter(Boolean).length;if(!cnt){flash("Select at least 1 formula");return;}exportFrmsSelected();ST.frmSelMode=false;ST.frmSel={};render();}},"⬆ Export ("+Object.values(ST.frmSel).filter(Boolean).length+")"):null,
+      ST.frmSelMode?h("button",{className:"btn btn-p",onClick:()=>{const cnt=Object.values(ST.frmSel).filter(Boolean).length;if(!cnt){flash("Select at least 1 formula");return;}exportFrmsSelected();ST.frmSelMode=false;ST.frmSel={};render();}},"⬆ Excel ("+Object.values(ST.frmSel).filter(Boolean).length+")"):null,
+      ST.frmSelMode?h("button",{className:"btn btn-p",style:{background:"#dc2626"},onClick:()=>{const cnt=Object.values(ST.frmSel).filter(Boolean).length;if(!cnt){flash("Select at least 1 formula");return;}exportFrmsPDF();ST.frmSelMode=false;ST.frmSel={};render();}},"📄 PDF ("+Object.values(ST.frmSel).filter(Boolean).length+")"):null,
       ST.frmSelMode?h("button",{className:"btn btn-s",onClick:()=>{ST.frmSelMode=false;ST.frmSel={};render();}},"✕ Cancel"):null,
       !ST.frmSelMode?h("button",{className:"btn btn-s",disabled:!myF.length,onClick:()=>{ST.frmSelMode=true;ST.frmSel={};render();}},"⬆ Export"):null,
       h("button",{className:"btn btn-s",onClick:()=>document.getElementById("frm-file").click()},"⬇ Import"),
@@ -1291,6 +1365,96 @@ function exportFrmsSelected(){
     const ws=XLSX.utils.json_to_sheet(rows);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Formulas");XLSX.writeFile(wb,"SpiceCalc_Formulas_Selected.xlsx");flash("Exported "+selF.length+" formula"+(selF.length>1?"s":""));
   }catch(e){console.error("Export error",e);flash("Export failed: "+e.message);}
 }
+function exportFrmsPDF(){
+  try{
+    const selIds=Object.entries(ST.frmSel||{}).filter(([k,v])=>v).map(([k])=>k);
+    if(!selIds.length)return flash("No formulas selected");
+    const selF=ST.frms.filter(f=>selIds.includes(f.id));
+    const today=new Date().toISOString().slice(0,10);
+    let pages="";
+    selF.forEach((f,pi)=>{
+      const s=f.sensory||{};
+      const tq=f.ingredients.reduce((sum,r)=>sum+(+r.qty||0),0);
+      const tc=f.ingredients.reduce((sum,r)=>sum+((+r.qty||0)*getIngPrice(r.itemCode)),0);
+      const cpk=tq>0?tc/tq:0;
+      const tp=f.ingredients.reduce((sum,r)=>sum+(+r.pct||0),0);
+      // Ingredient rows
+      let ingRows="";
+      f.ingredients.filter(r=>r.itemCode).forEach((ig,i)=>{
+        const nm=getIngName(ig.itemCode);const pr=getIngPrice(ig.itemCode);
+        ingRows+=`<tr><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280">${i+1}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-family:monospace;font-weight:600">${ig.itemCode}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${nm}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right">${(+ig.qty).toFixed(4)}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right">${(+ig.pct).toFixed(2)}%</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-family:monospace">${pr.toFixed(2)}</td></tr>`;
+      });
+      // Sensory section
+      let sensoryHtml="";
+      const hasS=Object.values(s).some(v=>v);
+      if(hasS){
+        const sRows=[["Texture",s.texture],["Appearance",s.appearance],["Taste",s.taste],["Aroma",s.aroma],["Size / Granulation",s.size],["Internal Feedback",s.internalFeedback],["Customer Feedback",s.customerFeedback],["Others",s.others]].filter(r=>r[1]);
+        sensoryHtml='<div style="margin-top:20px;padding:14px;border:1px solid #e9d5ff;border-radius:8px;background:#faf5ff"><div style="font-size:10px;color:#7c3aed;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;margin-bottom:10px">🧪 Sensory Feedback</div>';
+        if(s.imageUrl&&!s.imageUrl.startsWith("data:"))sensoryHtml+='<img src="'+s.imageUrl+'" style="width:100px;height:100px;object-fit:cover;border-radius:6px;margin-bottom:10px">';
+        else if(s.imageUrl)sensoryHtml+='<img src="'+s.imageUrl+'" style="max-width:150px;max-height:150px;object-fit:contain;border-radius:6px;margin-bottom:10px">';
+        sensoryHtml+='<table style="width:100%;font-size:12px;border-collapse:collapse">';
+        sRows.forEach(r=>{sensoryHtml+='<tr><td style="padding:4px 10px 4px 0;color:#6b7280;font-weight:600;vertical-align:top;white-space:nowrap;width:140px">'+r[0]+'</td><td style="padding:4px 0;color:#374151;white-space:pre-wrap">'+r[1]+'</td></tr>';});
+        sensoryHtml+='</table></div>';
+      }
+      pages+=`
+      ${pi>0?'<div style="page-break-before:always"></div>':''}
+      <div style="margin-bottom:30px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding-bottom:12px;border-bottom:2px solid #f59e0b">
+          <div><span style="font-size:20px;font-weight:800;color:#92400e">${f.productCode}</span> <span style="font-size:16px;color:#78350f;margin-left:8px">${f.productName}</span></div>
+          <div style="text-align:right"><span style="font-size:12px;color:#92400e;font-weight:600">V${f.version||1}</span>${f.active?'<span style="font-size:10px;background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:4px;margin-left:8px">ACTIVE</span>':''}
+          <div style="font-size:10px;color:#9ca3af;margin-top:4px">Updated: ${f.updatedAt||f.createdAt||""}</div></div>
+        </div>
+        <div style="display:flex;gap:16px;margin-bottom:16px;font-size:12px">
+          <div style="padding:8px 14px;background:#fef3c7;border-radius:6px"><b>Batch:</b> ${f.batchSize} kg</div>
+          <div style="padding:8px 14px;background:#fef3c7;border-radius:6px"><b>Total %:</b> ${tp.toFixed(1)}%</div>
+          <div style="padding:8px 14px;background:#fef3c7;border-radius:6px"><b>Cost/KG:</b> ${cpk.toFixed(2)}</div>
+          ${f.versionNote?'<div style="padding:8px 14px;background:#f3f4f6;border-radius:6px"><b>Note:</b> '+f.versionNote+'</div>':''}
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr style="background:#fef3c7">
+            <th style="padding:8px 12px;text-align:left;font-size:10px;color:#92400e">#</th>
+            <th style="padding:8px 12px;text-align:left;font-size:10px;color:#92400e">CODE</th>
+            <th style="padding:8px 12px;text-align:left;font-size:10px;color:#92400e">NAME</th>
+            <th style="padding:8px 12px;text-align:right;font-size:10px;color:#92400e">QTY (kg)</th>
+            <th style="padding:8px 12px;text-align:right;font-size:10px;color:#92400e">%</th>
+            <th style="padding:8px 12px;text-align:right;font-size:10px;color:#92400e">PRICE/KG</th>
+          </tr></thead>
+          <tbody>${ingRows}
+            <tr style="font-weight:700;background:#fef3c7"><td colspan="3" style="padding:8px 12px">TOTAL</td>
+            <td style="padding:8px 12px;text-align:right">${tq.toFixed(4)}</td>
+            <td style="padding:8px 12px;text-align:right">${tp.toFixed(2)}%</td>
+            <td style="padding:8px 12px;text-align:right">${cpk.toFixed(2)}</td></tr>
+          </tbody>
+        </table>
+        ${f.notes?'<div style="margin-top:16px;padding:12px;border:1px solid #fde68a;border-radius:8px;background:#fffbeb"><div style="font-size:10px;color:#92400e;text-transform:uppercase;font-weight:600;margin-bottom:6px">📝 Mixing / Further Instructions</div><div style="font-size:12px;color:#374151;line-height:1.6;white-space:pre-wrap">'+f.notes+'</div></div>':''}
+        ${sensoryHtml}
+      </div>`;
+    });
+    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>SpiceCalc Formula Export</title></head>
+    <body style="font-family:system-ui,sans-serif;padding:30px;color:#1f2937;max-width:900px;margin:0 auto">
+      <div style="text-align:center;margin-bottom:30px">
+        <div style="font-size:28px;font-weight:800;color:#92400e">🌶️ SpiceCalc by Hexafood</div>
+        <div style="font-size:11px;color:#b45309;letter-spacing:2px;text-transform:uppercase">Formula Export</div>
+        <div style="font-size:11px;color:#9ca3af;margin-top:6px">${today} · ${ST.user?.name||"User"} · ${selF.length} formula${selF.length>1?"s":""}</div>
+      </div>
+      ${pages}
+      <div style="margin-top:40px;border-top:1px solid #e5e7eb;padding-top:16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px">
+        <div><div style="font-size:10px;color:#9ca3af;margin-bottom:24px">Prepared by:</div><div style="border-bottom:1px solid #d1d5db"></div></div>
+        <div><div style="font-size:10px;color:#9ca3af;margin-bottom:24px">Checked by:</div><div style="border-bottom:1px solid #d1d5db"></div></div>
+        <div><div style="font-size:10px;color:#9ca3af;margin-bottom:24px">Approved by:</div><div style="border-bottom:1px solid #d1d5db"></div></div>
+      </div>
+      <div style="margin-top:24px;text-align:center;font-size:10px;color:#9ca3af">Generated by SpiceCalc by Hexafood · www.hexaiot.com.my</div>
+    </body></html>`;
+    const win=window.open("","_blank");
+    if(win){win.document.write(html);win.document.close();setTimeout(()=>win.print(),500);}
+    else flash("Pop-up blocked — allow pop-ups");
+  }catch(e){console.error("PDF export error",e);flash("PDF export failed: "+e.message);}
+}
 function importFrms(e){
   const file=e.target.files?.[0];if(!file)return;const r=new FileReader();
   r.onload=async ev=>{try{const wb=XLSX.read(ev.target.result,{type:"binary"});const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);const now=new Date().toISOString().slice(0,10);const grp={};
@@ -1303,5 +1467,6 @@ function importFrms(e){
 /* ─── Init ─── */
 init();
 </script>
-</body>
-</html>
+
+
+</body></html>
