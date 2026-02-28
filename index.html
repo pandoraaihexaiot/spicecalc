@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- saved from url=(0051)file:///C:/Users/Hexa%20IoT/Downloads/index_10.html -->
-<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SpiceCalc</title>
-<script src="./SpiceCalc_files/xlsx.full.min.js.download"></script>
-<script src="./SpiceCalc_files/supabase.min.js.download"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:system-ui,-apple-system,sans-serif;background:linear-gradient(145deg,#1a0f0a,#2d1810,#1a120d);color:#fef3c7;min-height:100vh;display:flex;flex-direction:column}
@@ -71,7 +71,7 @@ tr:hover{background:rgba(120,53,15,.1)}
 </style>
 </head>
 <body>
-<div id="app"><div class="hdr"><div class="hdr-l"><div class="logo">🌶️</div><div><div class="hdr-t">SpiceCalc</div><div class="hdr-s">SEASONING COSTING SYSTEM</div></div></div><div class="hdr-r"><span style="padding: 3px 8px; background: rgba(52, 211, 153, 0.15); color: rgb(52, 211, 153); border: 1px solid rgba(52, 211, 153, 0.2);">● DB Connected</span></div></div><div class="nav"><button class="tab active">📦 Ingredients 🔒</button><button class="tab">🧪 Formulas 🔒</button><button class="tab">🧮 Costing 🔒</button><button class="tab">📊 Batch 🔒</button></div><div class="main"><div class="pin-wrap"><div class="pin-box"><div class="fs22 fw7 mb8">Ingredients Master</div><div class="c4 fs14 mb24">Enter shared PIN</div><input id="pin-inp" class="pin-inp" type="password" maxlength="6" placeholder="••••••"><div id="pin-err" class="err"></div><button class="btn btn-p" style="width: 100%;">Unlock</button></div></div></div><div class="ftr"><span>SpiceCalc v1.0</span><span>Created by PandoraAI · <a href="https://www.hexaiot.com.my/" target="_blank">www.hexaiot.com.my</a></span><span>Auto-locks after 30 min</span></div></div>
+<div id="app"></div>
 <script>
 const h=(t,p,...c)=>{if(typeof t==="function")return t(p||{},...c);const e=document.createElement(t);if(p)Object.entries(p).forEach(([k,v])=>{if(k==="style"&&typeof v==="object")Object.assign(e.style,v);else if(k.startsWith("on"))e.addEventListener(k.slice(2).toLowerCase(),v);else if(k==="className")e.className=v;else if(k==="value")e.value=v;else if(k==="disabled")e.disabled=v;else if(k==="checked")e.checked=v;else if(k==="selected")e.selected=v;else if(k==="type")e.type=v;else if(k==="placeholder")e.placeholder=v;else if(k==="maxLength")e.maxLength=v;else if(k==="innerHTML")e.innerHTML=v;else if(k==="htmlFor")e.htmlFor=v;else if(k==="autofocus")setTimeout(()=>e.focus(),50);else e.setAttribute(k,v);});c.flat(9).forEach(ch=>{if(ch==null||ch===false)return;if(typeof ch==="string"||typeof ch==="number")e.appendChild(document.createTextNode(ch));else if(ch instanceof Node)e.appendChild(ch);});return e;};
 
@@ -1303,6 +1303,5 @@ function importFrms(e){
 /* ─── Init ─── */
 init();
 </script>
-
-
-</body></html>
+</body>
+</html>
