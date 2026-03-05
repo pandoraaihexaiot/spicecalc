@@ -75,6 +75,12 @@ tr:hover{background:rgba(120,53,15,.1)}
 <script>
 const h=(t,p,...c)=>{if(typeof t==="function")return t(p||{},...c);const e=document.createElement(t);if(p)Object.entries(p).forEach(([k,v])=>{if(k==="style"&&typeof v==="object")Object.assign(e.style,v);else if(k.startsWith("on"))e.addEventListener(k.slice(2).toLowerCase(),v);else if(k==="className")e.className=v;else if(k==="value")e.value=v;else if(k==="disabled")e.disabled=v;else if(k==="checked")e.checked=v;else if(k==="selected")e.selected=v;else if(k==="type")e.type=v;else if(k==="placeholder")e.placeholder=v;else if(k==="maxLength")e.maxLength=v;else if(k==="innerHTML")e.innerHTML=v;else if(k==="htmlFor")e.htmlFor=v;else if(k==="autofocus")setTimeout(()=>e.focus(),50);else e.setAttribute(k,v);});c.flat(9).forEach(ch=>{if(ch==null||ch===false)return;if(typeof ch==="string"||typeof ch==="number")e.appendChild(document.createTextNode(ch));else if(ch instanceof Node)e.appendChild(ch);});return e;};
 
+/* ─── XSS Protection: HTML entity escaper ─── */
+function escHtml(s){
+  if(s==null)return"";
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+
 /* ─── Supabase ─── */
 const SB_URL="https://cndcfqznltdhctnisgpf.supabase.co";
 const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNuZGNmcXpubHRkaGN0bmlzZ3BmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxOTQ2MzEsImV4cCI6MjA4Nzc3MDYzMX0.X-EZbKdtN_mIVcSNIEkZniT45vePIPWIEJWl-QrjMOQ";
@@ -82,7 +88,8 @@ let sb;
 try{sb=supabase.createClient(SB_URL,SB_KEY);}catch(e){console.error("Supabase init failed",e);}
 
 /* ─── State ─── */
-let ST={tab:"ing",s1:false,user:null,adm:false,ings:[],frms:[],csts:[],users:[],s1pin:"100100",toast:"",confirm:null,
+let ST={tab:"ing",s1:false,user:null,adm:false,ings:[],frms:[],csts:[],users:[],toast:"",confirm:null,
+  s1Token:null,userToken:null,
   ingSearch:"",ingPage:1,ingSort:"itemCode",ingDir:"asc",ingForm:null,ingEdit:null,
   frmView:"list",frmEdit:null,frmSearch:"",frmExpanded:{},frmSelMode:false,frmSel:{},
   costSel:null,costData:null,
@@ -94,26 +101,39 @@ let _toastTimer;
 function flash(m){ST.toast=m;render();clearTimeout(_toastTimer);_toastTimer=setTimeout(()=>{ST.toast="";render();},2500);}
 
 /* ─── DB Helpers ─── */
-// Map DB snake_case → UI camelCase for ingredients
-function ingFromDb(r){return{id:r.id,itemCode:r.item_code,itemName:r.item_name||"",description:r.description||"",packagingSize:r.packaging_size||"",pricePerKg:+r.price_per_kg||0,createdAt:r.created_at,updatedAt:r.updated_at};}
+function ingFromDb(r){return{id:r.id,_isNew:false,itemCode:r.item_code,itemName:r.item_name||"",description:r.description||"",packagingSize:r.packaging_size||"",pricePerKg:+r.price_per_kg||0,createdAt:r.created_at,updatedAt:r.updated_at};}
 function ingToDb(i){return{item_code:i.itemCode,item_name:i.itemName||"",description:i.description||"",packaging_size:i.packagingSize||"",price_per_kg:i.pricePerKg||0};}
 
-function userFromDb(r){return{id:r.slot,name:r.name,pin:r.pin,role:r.role,dbId:r.id};}
-
-function frmFromDb(r,fis){return{id:r.id,productCode:r.product_code,productName:r.product_name,batchSize:+r.batch_size||100,version:r.version||1,versionNote:r.version_note||"",active:r.active!==false,inputMode:r.input_mode||"kg",notes:r.notes||"",sensory:r.sensory||{},createdBy:r.created_by,createdAt:r.created_at,updatedAt:r.updated_at,
+function frmFromDb(r,fis){return{id:r.id,_isNew:false,productCode:r.product_code,productName:r.product_name,batchSize:+r.batch_size||100,version:r.version||1,versionNote:r.version_note||"",active:r.active!==false,inputMode:r.input_mode||"kg",notes:r.notes||"",sensory:r.sensory||{},createdBy:r.created_by,createdAt:r.created_at,updatedAt:r.updated_at,
   ingredients:(fis||[]).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).map(fi=>({itemCode:fi.item_code,qty:+fi.qty||0,pct:+fi.pct||0}))};}
 
-function costFromDb(r){return{id:r.id,formulaId:r.formula_id,productCode:r.product_code||"",productName:r.product_name||"",version:r.version||1,rawPerKg:+r.raw_per_kg||0,wastage:+r.wastage||0,packaging:+r.packaging||0,outerPkg:+r.outer_pkg||0,labor:+r.labor||0,shipping:+r.shipping||0,document:+r.document||0,lab:+r.lab||0,other:+r.other||0,margin:+r.margin||30,createdBy:r.created_by,createdAt:r.created_at,updatedAt:r.updated_at};}
+function costFromDb(r){return{id:r.id,_isNew:false,formulaId:r.formula_id,productCode:r.product_code||"",productName:r.product_name||"",version:r.version||1,rawPerKg:+r.raw_per_kg||0,wastage:+r.wastage||0,packaging:+r.packaging||0,outerPkg:+r.outer_pkg||0,labor:+r.labor||0,shipping:+r.shipping||0,document:+r.document||0,lab:+r.lab||0,other:+r.other||0,margin:+r.margin||30,grammage:+r.grammage||1,label:r.label||"",createdBy:r.created_by,createdAt:r.created_at,updatedAt:r.updated_at};}
+
+/* ─── Auth via server-side RPC (PINs never leave the server) ─── */
+async function authVerifyS1(pin){
+  const{data,error}=await sb.rpc("verify_section1_pin",{pin_input:pin});
+  if(error){console.error("S1 auth error:",error);return{ok:false,error:"Server error"};}
+  return data;
+}
+async function authVerifyUser(pin){
+  const{data,error}=await sb.rpc("verify_user_pin",{pin_input:pin});
+  if(error){console.error("User auth error:",error);return{ok:false,error:"Server error"};}
+  return data;
+}
+async function authRefresh(){
+  const token=ST.userToken||ST.s1Token;
+  if(!token)return;
+  await sb.rpc("refresh_session",{session_token:token});
+}
+async function authLogout(){
+  if(ST.userToken)await sb.rpc("destroy_session",{session_token:ST.userToken}).catch(()=>{});
+  if(ST.s1Token)await sb.rpc("destroy_session",{session_token:ST.s1Token}).catch(()=>{});
+  ST.s1Token=null;ST.userToken=null;
+}
 
 /* ─── DB Operations ─── */
 async function dbLoadAll(){
   try{
-    // Config
-    const{data:cfg}=await sb.from("config").select("*").eq("key","section1_pin").single();
-    if(cfg)ST.s1pin=cfg.value;
-    // Users
-    const{data:users}=await sb.from("users").select("*").order("slot");
-    if(users)ST.users=users.map(userFromDb);
     // Ingredients
     const{data:ings}=await sb.from("ingredients").select("*").order("item_code");
     if(ings)ST.ings=ings.map(ingFromDb);
@@ -131,97 +151,103 @@ async function dbLoadAll(){
   }catch(e){console.error("DB load error",e);ST.dbOk=false;}
 }
 
-async function saveIngs(){
-  // No-op — individual operations handle DB writes
-}
 async function dbSaveIng(ing){
   const d=ingToDb(ing);
-  const isUUID=typeof ing.id==="string"&&ing.id.includes("-")&&ing.id.length>30;
-  if(isUUID){
+  if(!ing._isNew&&ing.id){
     const{error}=await sb.from("ingredients").update({...d,updated_at:new Date().toISOString()}).eq("id",ing.id);
     if(error)console.error("Ingredient update error:",error);
   }else{
     const{data,error}=await sb.from("ingredients").insert(d).select().single();
     if(error)console.error("Ingredient insert error:",error);
-    if(data)ing.id=data.id;
+    if(data){ing.id=data.id;ing._isNew=false;}
   }
 }
 async function dbDeleteIng(id){
   await sb.from("ingredients").delete().eq("id",id);
 }
 
-async function saveFrms(){/* no-op */}
+/* Atomic formula save via server-side RPC (prevents race conditions) */
 async function dbSaveFrm(frm){
-  const frmData={product_code:frm.productCode,product_name:frm.productName,batch_size:frm.batchSize,version:frm.version||1,version_note:frm.versionNote||"",active:frm.active,input_mode:frm.inputMode||"kg",notes:frm.notes||"",sensory:frm.sensory||{},created_by:frm.createdBy,updated_at:new Date().toISOString()};
-  let frmId=frm.id;
-  // UUID format check — Supabase UUIDs contain hyphens like "abc-def-123"
-  const isUUID=typeof frmId==="string"&&frmId.includes("-")&&frmId.length>30;
-  if(isUUID){
-    const{error}=await sb.from("formulas").update(frmData).eq("id",frmId);
-    if(error)console.error("Formula update error:",error);
-  }else{
-    const{data,error}=await sb.from("formulas").insert(frmData).select().single();
-    if(error)console.error("Formula insert error:",error);
-    if(data){frmId=data.id;frm.id=frmId;}else{console.error("Formula insert returned no data");return;}
-  }
-  // Replace formula_ingredients
-  await sb.from("formula_ingredients").delete().eq("formula_id",frmId);
-  const fiRows=frm.ingredients.filter(r=>r.itemCode).map((r,i)=>({formula_id:frmId,item_code:r.itemCode,qty:r.qty||0,pct:r.pct||0,sort_order:i}));
-  if(fiRows.length>0){
-    const{error:fiErr}=await sb.from("formula_ingredients").insert(fiRows);
-    if(fiErr)console.error("Formula ingredients insert error:",fiErr);
-  }
+  const ings=frm.ingredients.filter(r=>r.itemCode).map((r,i)=>({item_code:r.itemCode,qty:r.qty||0,pct:r.pct||0,sort_order:i}));
+  const{data,error}=await sb.rpc("save_formula_with_ingredients",{
+    p_formula_id:frm._isNew?null:frm.id,
+    p_product_code:frm.productCode,
+    p_product_name:frm.productName,
+    p_batch_size:frm.batchSize,
+    p_version:frm.version||1,
+    p_version_note:frm.versionNote||"",
+    p_active:frm.active,
+    p_input_mode:frm.inputMode||"kg",
+    p_notes:frm.notes||"",
+    p_sensory:frm.sensory||{},
+    p_created_by:frm.createdBy,
+    p_ingredients:ings
+  });
+  if(error){console.error("Formula save RPC error:",error);return false;}
+  if(data&&data.ok){frm.id=data.id;frm._isNew=false;return true;}
+  if(data&&data.error){flash("Save failed: "+data.error);return false;}
+  return false;
 }
 async function dbDeleteFrm(id){
   await sb.from("formula_ingredients").delete().eq("formula_id",id);
   await sb.from("formulas").delete().eq("id",id);
 }
-async function dbDeactivateVersions(productCode,createdBy,excludeId){
-  const{data:others}=await sb.from("formulas").select("id").eq("product_code",productCode).eq("created_by",createdBy).neq("id",excludeId);
-  if(others)for(const o of others)await sb.from("formulas").update({active:false}).eq("id",o.id);
-}
 async function dbSetActive(id,active){
   await sb.from("formulas").update({active}).eq("id",id);
 }
 
-async function saveCosts(){/* no-op */}
 async function dbSaveCost(cost){
-  const d={formula_id:cost.formulaId,product_code:cost.productCode||"",product_name:cost.productName||"",version:cost.version||1,raw_per_kg:cost.rawPerKg||0,wastage:cost.wastage||0,packaging:cost.packaging||0,outer_pkg:cost.outerPkg||0,labor:cost.labor||0,shipping:cost.shipping||0,document:cost.document||0,lab:cost.lab||0,other:cost.other||0,margin:cost.margin||30,created_by:cost.createdBy,updated_at:new Date().toISOString()};
-  const isUUID=typeof cost.id==="string"&&cost.id.includes("-")&&cost.id.length>30;
-  if(isUUID){
+  const d={formula_id:cost.formulaId,product_code:cost.productCode||"",product_name:cost.productName||"",version:cost.version||1,raw_per_kg:cost.rawPerKg||0,wastage:cost.wastage||0,packaging:cost.packaging||0,outer_pkg:cost.outerPkg||0,labor:cost.labor||0,shipping:cost.shipping||0,document:cost.document||0,lab:cost.lab||0,other:cost.other||0,margin:cost.margin||30,grammage:cost.grammage||1,label:cost.label||"",created_by:cost.createdBy,updated_at:new Date().toISOString()};
+  if(!cost._isNew&&cost.id){
     const{error}=await sb.from("costings").update(d).eq("id",cost.id);
     if(error)console.error("Costing update error:",error);
   }else{
     const{data,error}=await sb.from("costings").insert(d).select().single();
     if(error)console.error("Costing insert error:",error);
-    if(data)cost.id=data.id;
+    if(data){cost.id=data.id;cost._isNew=false;}
   }
 }
 async function dbDeleteCost(id){
   await sb.from("costings").delete().eq("id",id);
 }
 
-async function saveUsers(){
-  for(const u of ST.users){
-    await sb.from("users").update({name:u.name,pin:u.pin,updated_at:new Date().toISOString()}).eq("slot",u.id);
-  }
+/* Admin RPCs */
+async function adminGetUsers(){
+  const{data,error}=await sb.rpc("admin_get_users",{session_token:ST.userToken});
+  if(error||!data||!data.ok)return[];
+  return data.users||[];
 }
-async function savePin(){
-  await sb.from("config").update({value:ST.s1pin,updated_at:new Date().toISOString()}).eq("key","section1_pin");
+async function adminUpdateUser(slot,name,pin){
+  const{data,error}=await sb.rpc("admin_update_user",{session_token:ST.userToken,target_slot:slot,new_name:name,new_pin:pin||null});
+  if(error){console.error("Admin update error:",error);return{ok:false,error:"Server error"};}
+  return data;
+}
+async function adminUpdateS1Pin(newPin){
+  const{data,error}=await sb.rpc("admin_update_section1_pin",{session_token:ST.userToken,new_pin:newPin});
+  if(error){console.error("Admin S1 PIN error:",error);return{ok:false,error:"Server error"};}
+  return data;
 }
 
 async function init(){
-  render(); // Show loading
+  render();
   await dbLoadAll();
   render();
   if(!ST.dbOk)flash("⚠ Database connection failed — check Supabase setup");
 }
 
-/* Auto-lock */
+/* Auto-lock with server-side session expiry */
 let lastAct=Date.now();
 document.addEventListener("mousemove",()=>lastAct=Date.now());
 document.addEventListener("keydown",()=>lastAct=Date.now());
-setInterval(()=>{if(Date.now()-lastAct>30*60*1000){ST.s1=false;ST.user=null;ST.adm=false;ST.tab="ing";render();}},30000);
+/* Refresh server session every 5 min if active, lock after 30 min idle */
+setInterval(async()=>{
+  if(Date.now()-lastAct>30*60*1000){
+    await authLogout();
+    ST.s1=false;ST.user=null;ST.adm=false;ST.tab="ing";render();
+  }else if(ST.userToken||ST.s1Token){
+    await authRefresh();
+  }
+},5*60*1000);
 
 /* ─── Render ─── */
 function render(){
@@ -231,7 +257,7 @@ function render(){
   app.appendChild(renderNav());
   const main=h("div",{className:"main"});
   if(ST.adm&&ST.user?.role==="admin")main.appendChild(renderAdmin());
-  else if(ST.tab==="ing")main.appendChild(ST.s1?renderIngredients():renderPin("Ingredients Master","Enter shared PIN",()=>{const v=document.getElementById("pin-inp").value;if(v===ST.s1pin){ST.s1=true;render();}else{document.getElementById("pin-err").textContent="Incorrect PIN";document.getElementById("pin-inp").value="";}}));
+  else if(ST.tab==="ing")main.appendChild(ST.s1?renderIngredients():renderPin("Ingredients Master","Enter shared PIN",unlockS1));
   else if(ST.tab==="frm")main.appendChild(ST.user?renderFormulas():renderPin("Formula Builder","Enter your PIN",unlockUser));
   else if(ST.tab==="cost")main.appendChild(ST.user?renderCosting():renderPin("Cost Calculator","Enter your PIN",unlockUser));
   else if(ST.tab==="batch")main.appendChild(ST.user?renderBatch():renderPin("Batch Calculator","Enter your PIN",unlockUser));
@@ -242,11 +268,26 @@ function render(){
   if(ST.ingForm!==null)app.appendChild(renderIngForm());
 }
 
-function unlockUser(){
+/* Server-side PIN verification for Section 1 */
+async function unlockS1(){
   const v=document.getElementById("pin-inp").value;
-  const m=ST.users.find(u=>u.pin===v);
-  if(m){ST.user=m;render();}
-  else{document.getElementById("pin-err").textContent="Incorrect PIN";document.getElementById("pin-inp").value="";}
+  if(!v||v.length<4)return;
+  const btn=document.querySelector(".pin-box .btn-p");
+  if(btn){btn.disabled=true;btn.textContent="Verifying...";}
+  const res=await authVerifyS1(v);
+  if(res.ok){ST.s1=true;ST.s1Token=res.token;render();}
+  else{document.getElementById("pin-err").textContent=res.error||"Incorrect PIN";document.getElementById("pin-inp").value="";if(btn){btn.disabled=false;btn.textContent="Unlock";}}
+}
+
+/* Server-side PIN verification for User login */
+async function unlockUser(){
+  const v=document.getElementById("pin-inp").value;
+  if(!v||v.length<4)return;
+  const btn=document.querySelector(".pin-box .btn-p");
+  if(btn){btn.disabled=true;btn.textContent="Verifying...";}
+  const res=await authVerifyUser(v);
+  if(res.ok){ST.user={id:res.slot,name:res.name,role:res.role};ST.userToken=res.token;render();}
+  else{document.getElementById("pin-err").textContent=res.error||"Incorrect PIN";document.getElementById("pin-inp").value="";if(btn){btn.disabled=false;btn.textContent="Unlock";}}
 }
 
 /* ─── Header ─── */
@@ -257,7 +298,7 @@ function renderHeader(){
       h("span",{style:{fontSize:10,padding:"3px 8px",borderRadius:8,background:ST.dbOk?"rgba(52,211,153,.15)":"rgba(239,68,68,.15)",color:ST.dbOk?"#34d399":"#f87171",border:"1px solid "+(ST.dbOk?"rgba(52,211,153,.2)":"rgba(239,68,68,.2)")}},ST.dbOk?"● DB Connected":"● DB Offline"),
       ST.user?h("span",{className:"usr-badge"},ST.user.name+(ST.user.role==="admin"?" ⭐":"")):null,
       ST.user?.role==="admin"?h("button",{className:"btn btn-s",style:{padding:"6px 12px",fontSize:12},onClick:()=>{ST.adm=!ST.adm;render();}},"⚙️ Admin"):null,
-      (ST.s1||ST.user)?h("button",{className:"btn btn-s",style:{padding:"6px 12px",fontSize:12},onClick:()=>{ST.s1=false;ST.user=null;ST.adm=false;render();}},"🔒 Lock"):null
+      (ST.s1||ST.user)?h("button",{className:"btn btn-s",style:{padding:"6px 12px",fontSize:12},onClick:async()=>{await authLogout();ST.s1=false;ST.user=null;ST.adm=false;render();}},"🔒 Lock"):null
     )
   );
 }
@@ -272,7 +313,8 @@ function renderNav(){
 
 /* ─── Footer ─── */
 function renderFooter(){
-  return h("div",{className:"ftr"},h("span",null,"SpiceCalc by Hexafood v1.0"),h("span",{innerHTML:'Created by Hexafood · <a href="https://www.hexaiot.com.my" target="_blank">www.hexaiot.com.my</a>'}),h("span",null,"Auto-locks after 30 min"));
+  const link=h("a",{href:"https://www.hexaiot.com.my",target:"_blank"},"www.hexaiot.com.my");
+  return h("div",{className:"ftr"},h("span",null,"SpiceCalc by Hexafood v2.0"),h("span",null,"Created by Hexafood · ",link),h("span",null,"Auto-locks after 30 min"));
 }
 
 /* ─── PIN Screen ─── */
@@ -315,22 +357,18 @@ function renderCosting(){
       const tq=f.ingredients.reduce((s,r)=>s+(+r.qty||0),0);
       const tc=f.ingredients.reduce((s,r)=>s+((+r.qty||0)*getIngPrice(r.itemCode)),0);
       const rawPerKg=tq>0?tc/tq:0;
-      // Check if saved costing exists
-      const saved=ST.csts.find(c=>c.formulaId===f.id&&c.createdBy===ST.user.id);
-      ST.costData=saved?{...saved}:{
-        formulaId:f.id,productCode:f.productCode,productName:f.productName,version:f.version||1,
-        rawPerKg:rawPerKg,wastage:0,packaging:0,outerPkg:0,labor:0,shipping:0,document:0,lab:0,other:0,margin:30,
+      ST.costData={
+        formulaId:f.id,_isNew:true,productCode:f.productCode,productName:f.productName,version:f.version||1,
+        rawPerKg:rawPerKg,wastage:0,packaging:0,outerPkg:0,labor:0,shipping:0,document:0,lab:0,other:0,margin:30,grammage:1,label:"",
         createdBy:ST.user.id,createdAt:new Date().toISOString().slice(0,10)
       };
-      // Always recalc raw cost from current formula
-      ST.costData.rawPerKg=rawPerKg;
     }
   }
 
   // Header
   wrap.appendChild(h("div",{className:"flex between items-c wrap mb24 gap16"},
     h("div",null,h("div",{className:"fs22 fw7 c1"},"Cost Calculator"),h("div",{className:"c4 fs14 mt8"},"Calculate selling price per KG · "+ST.user.name+(ST.costData&&ST.costData.updatedAt?" · Last updated: "+ST.costData.updatedAt:""))),
-    ST.costData?h("button",{className:"btn btn-p",onClick:saveCostCalc},"💾 Save Costing"):null
+    ST.costData?null:null
   ));
 
   // Formula selector - searchable
@@ -372,6 +410,22 @@ function renderCosting(){
     const d=ST.costData;
     const costCard=h("div",{className:"card mb24"});
 
+    // Label / Client field
+    costCard.appendChild(h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}},
+      h("div",null,
+        h("div",{className:"lbl"},"Label / Client"),
+        h("input",{className:"inp",value:d.label||"",placeholder:"e.g. Client A — 50g pack, Export pricing...",
+          onInput:e=>{d.label=e.target.value;}})
+      ),
+      h("div",{style:{display:"flex",alignItems:"flex-end",gap:8}},
+        h("button",{className:"btn btn-p",onClick:saveCostCalc},"💾 Save"),
+        h("button",{className:"btn btn-s",onClick:()=>{
+          const newCost={...d,id:null,_isNew:true,label:(d.label||"")+" (copy)",createdAt:new Date().toISOString().slice(0,10),updatedAt:new Date().toISOString().slice(0,10)};
+          ST.costData=newCost;render();flash("Editing new copy — change label and Save");
+        }},"📋 Save as New")
+      )
+    ));
+
     // Raw material cost (read-only, from formula)
     costCard.appendChild(h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,marginBottom:20}},
       h("div",{style:{gridColumn:"span 3",padding:"14px 16px",borderRadius:10,background:"rgba(120,53,15,.2)",border:"1px solid rgba(180,120,60,.15)"}},
@@ -407,6 +461,12 @@ function renderCosting(){
       h("input",{id:"cst-margin",className:"inp",type:"number",step:"0.1",min:"0",value:d.margin,placeholder:"30",
         onInput:e=>{d.margin=+e.target.value||0;updateCostCalc();}})
     ));
+    // Grammage
+    grid.appendChild(h("div",null,
+      h("div",{className:"lbl"},"Grammage (KG)"),
+      h("input",{id:"cst-gram",className:"inp",type:"number",step:"0.001",min:"0.001",value:d.grammage||1,placeholder:"1",
+        onInput:e=>{d.grammage=+e.target.value||1;updateCostCalc();}})
+    ));
     costCard.appendChild(grid);
 
     // Results section
@@ -425,19 +485,24 @@ function renderCosting(){
     listCard.appendChild(h("div",{className:"fs14 fw6 c2 mb16"},"📋 Saved Costings ("+myCosts.length+")"));
     const tbl=h("table");
     tbl.appendChild(h("thead",null,h("tr",null,
-      h("th",null,"Product"),h("th",null,"Ver"),h("th",{className:"text-r"},"Raw/KG"),h("th",{className:"text-r"},"Total Cost/KG"),h("th",{className:"text-r"},"Margin"),h("th",{className:"text-r"},"Selling/KG"),h("th",{className:"text-r"},"Date"),h("th",{style:{width:60}})
+      h("th",null,"Product"),h("th",null,"Label"),h("th",null,"Ver"),h("th",{className:"text-r"},"Raw/KG"),h("th",{className:"text-r"},"Total/KG"),h("th",{className:"text-r"},"Margin"),h("th",{className:"text-r"},"Selling/KG"),h("th",{className:"text-r"},"Gram"),h("th",{className:"text-r"},"Selling/Pack"),h("th",{className:"text-r"},"Date"),h("th",{style:{width:60}})
     )));
     const tbody=h("tbody");
     myCosts.forEach(c=>{
       const totalCost=calcTotalCostPerKg(c);
       const selling=calcSellingPrice(c);
+      const gram=c.grammage||1;
+      const selPack=selling*gram;
       tbody.appendChild(h("tr",{style:{cursor:"pointer"},onClick:()=>{ST.costSel=c.formulaId;ST.costData={...c};render();}},
         h("td",{className:"mono c3 fw6"},c.productCode),
+        h("td",{className:"c4 fs12"},c.label||"—"),
         h("td",{className:"c4"},"V"+(c.version||1)),
         h("td",{className:"text-r mono c2"},c.rawPerKg.toFixed(2)),
         h("td",{className:"text-r mono c2 fw6"},totalCost.toFixed(2)),
         h("td",{className:"text-r c4"},c.margin+"%"),
-        h("td",{className:"text-r mono fw7",style:{color:"#34d399",fontSize:15}},selling.toFixed(2)),
+        h("td",{className:"text-r mono fw6",style:{color:"#34d399"}},selling.toFixed(2)),
+        h("td",{className:"text-r c4 fs12"},gram>=1?gram+"kg":(gram*1000)+"g"),
+        h("td",{className:"text-r mono fw7",style:{color:"#fbbf24",fontSize:15}},selPack.toFixed(2)),
         h("td",{className:"text-r c5 fs12"},c.updatedAt||c.createdAt||""),
         h("td",{className:"text-r",onClick:e=>e.stopPropagation()},
           h("button",{className:"abtn cr",onClick:()=>{ST.confirm={msg:`Delete costing for "${c.productCode}"?`,action:async()=>{await dbDeleteCost(c.id);ST.csts=ST.csts.filter(x=>x.id!==c.id);flash("Deleted");render();}};render();}},"🗑️")
@@ -505,10 +570,23 @@ function updateCostCalc(){
     h("span",{className:"fs13 mono c4"},(d.margin||0)+"% → +"+profit.toFixed(2)+"/kg")
   ));
   // SELLING PRICE
+  const gram=d.grammage||1;
+  const sellingPerPack=sellingPrice*gram;
+  const costPerPack=totalCost*gram;
   bk.appendChild(h("div",{style:{marginTop:12,padding:"16px 20px",borderRadius:12,background:"linear-gradient(135deg,rgba(52,211,153,.1),rgba(16,185,129,.05))",border:"1px solid rgba(52,211,153,.25)",textAlign:"center"}},
     h("div",{className:"fs12 fw6",style:{color:"#6ee7b7",textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}},"Selling Price / KG"),
     h("div",{className:"mono fw7",style:{fontSize:32,color:"#34d399"}},sellingPrice.toFixed(2))
   ));
+  // Per Pack pricing
+  if(gram!==1){
+    bk.appendChild(h("div",{style:{marginTop:12,padding:"16px 20px",borderRadius:12,background:"linear-gradient(135deg,rgba(251,191,36,.1),rgba(245,158,11,.05))",border:"1px solid rgba(251,191,36,.25)",textAlign:"center"}},
+      h("div",{className:"fs12 fw6",style:{color:"#fbbf24",textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}},"Per Pack ("+((gram>=1?gram+"kg":(gram*1000)+"g"))+")"),
+      h("div",{className:"flex between items-c",style:{justifyContent:"center",gap:30,marginTop:8}},
+        h("div",null,h("div",{className:"fs10 c5"},"Cost/Pack"),h("div",{className:"mono fw6 fs18 c2"},costPerPack.toFixed(2))),
+        h("div",null,h("div",{className:"fs10 c5"},"Selling/Pack"),h("div",{className:"mono fw7 fs22",style:{color:"#fbbf24"}},sellingPerPack.toFixed(2)))
+      )
+    ));
+  }
   el.appendChild(bk);
 }
 
@@ -576,7 +654,9 @@ function renderBatch(){
   const bsDiv=h("div",null);
   bsDiv.appendChild(h("div",{className:"lbl mb8"},"Batch Size (kg)"));
   bsDiv.appendChild(h("input",{id:"batch-size",className:"inp",type:"number",step:"0.1",min:"0",style:{fontSize:15,padding:"10px 14px"},value:ST.batchSize||"",placeholder:"Enter batch size...",
-    onInput:e=>{ST.batchSize=+e.target.value||0;render();}}));
+    onInput:e=>{ST.batchSize=+e.target.value||0;},
+    onChange:e=>{ST.batchSize=+e.target.value||0;render();},
+    onKeydown:e=>{if(e.key==="Enter"){ST.batchSize=+e.target.value||0;e.target.blur();render();}}}));
   selGrid.appendChild(bsDiv);
   selCard.appendChild(selGrid);
   wrap.appendChild(selCard);
@@ -664,13 +744,13 @@ function exportBatchPDF(f){
   const totalQty=ings.reduce((s,r)=>s+r.qty,0);
   const now=new Date().toLocaleDateString("en-MY",{year:"numeric",month:"long",day:"numeric"});
 
-  // Build HTML for PDF
+  // Build HTML for PDF (all user data escaped to prevent XSS)
   let rows="";
   ings.forEach((r,i)=>{
     if(ST.batchDetail){
-      rows+=`<tr><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-size:12px">${i+1}</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-family:monospace;font-weight:600;color:#92400e">${r.itemCode}</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#374151">${r.itemName||"—"}</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-size:12px">${r.description||"—"}</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-family:monospace;color:#6b7280">${r.pct.toFixed(2)}%</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-family:monospace;font-weight:700;color:#1f2937;font-size:14px">${r.qty.toFixed(2)}</td></tr>`;
+      rows+=`<tr><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-size:12px">${i+1}</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-family:monospace;font-weight:600;color:#92400e">${escHtml(r.itemCode)}</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#374151">${escHtml(r.itemName)||"—"}</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-size:12px">${escHtml(r.description)||"—"}</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-family:monospace;color:#6b7280">${r.pct.toFixed(2)}%</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-family:monospace;font-weight:700;color:#1f2937;font-size:14px">${r.qty.toFixed(2)}</td></tr>`;
     }else{
-      rows+=`<tr><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-size:12px">${i+1}</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-family:monospace;font-weight:600;color:#92400e">${r.itemCode}</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-family:monospace;color:#6b7280">${r.pct.toFixed(2)}%</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-family:monospace;font-weight:700;color:#1f2937;font-size:14px">${r.qty.toFixed(2)}</td></tr>`;
+      rows+=`<tr><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;font-size:12px">${i+1}</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-family:monospace;font-weight:600;color:#92400e">${escHtml(r.itemCode)}</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-family:monospace;color:#6b7280">${r.pct.toFixed(2)}%</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-family:monospace;font-weight:700;color:#1f2937;font-size:14px">${r.qty.toFixed(2)}</td></tr>`;
     }
   });
   const thStyle='style="padding:10px 12px;text-align:left;font-size:11px;color:#92400e;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;border-bottom:2px solid #d97706"';
@@ -683,31 +763,31 @@ function exportBatchPDF(f){
   }
   const tCols=ST.batchDetail?6:4;
 
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Batch - ${f.productCode}</title>
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Batch - ${escHtml(f.productCode)}</title>
 <style>@media print{body{margin:0}@page{margin:15mm 12mm}}</style></head>
 <body style="font-family:system-ui,-apple-system,sans-serif;max-width:800px;margin:0 auto;padding:20px;color:#1f2937">
 <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #d97706;padding-bottom:16px;margin-bottom:24px">
 <div><div style="font-size:28px;font-weight:800;color:#92400e">🌶️ SpiceCalc by Hexafood</div><div style="font-size:11px;color:#b45309;letter-spacing:2px;text-transform:uppercase">Batch Production Sheet</div></div>
-<div style="text-align:right"><div style="font-size:13px;color:#6b7280">Date: <b style="color:#1f2937">${now}</b></div><div style="font-size:13px;color:#6b7280">Prepared by: <b style="color:#1f2937">${ST.user.name}</b></div></div>
+<div style="text-align:right"><div style="font-size:13px;color:#6b7280">Date: <b style="color:#1f2937">${escHtml(now)}</b></div><div style="font-size:13px;color:#6b7280">Prepared by: <b style="color:#1f2937">${escHtml(ST.user.name)}</b></div></div>
 </div>
 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px">
-<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px"><div style="font-size:10px;color:#92400e;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">Product Code</div><div style="font-size:18px;font-weight:700;color:#92400e;font-family:monospace">${f.productCode}</div></div>
-<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px"><div style="font-size:10px;color:#92400e;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">Product Name</div><div style="font-size:18px;font-weight:700;color:#92400e">${f.productName}</div></div>
+<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px"><div style="font-size:10px;color:#92400e;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">Product Code</div><div style="font-size:18px;font-weight:700;color:#92400e;font-family:monospace">${escHtml(f.productCode)}</div></div>
+<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px"><div style="font-size:10px;color:#92400e;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">Product Name</div><div style="font-size:18px;font-weight:700;color:#92400e">${escHtml(f.productName)}</div></div>
 <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:14px"><div style="font-size:10px;color:#065f46;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">Batch Size</div><div style="font-size:18px;font-weight:700;color:#065f46">${ST.batchSize} kg</div></div>
 </div>
-<div style="font-size:13px;color:#6b7280;margin-bottom:8px">Version: V${f.version||1}${f.versionNote?" — "+f.versionNote:""} &nbsp;|&nbsp; Scale: ${scale.toFixed(2)}x</div>
+<div style="font-size:13px;color:#6b7280;margin-bottom:8px">Version: V${f.version||1}${f.versionNote?" — "+escHtml(f.versionNote):""} &nbsp;|&nbsp; Scale: ${scale.toFixed(2)}x</div>
 <table style="width:100%;border-collapse:collapse;font-size:13px"><thead>${thead}</thead><tbody>${rows}
 <tr style="border-top:2px solid #d97706;background:#fffbeb"><td colspan="${tCols-1}" style="padding:10px 12px;text-align:right;font-weight:700;color:#92400e;text-transform:uppercase;font-size:12px">Total</td><td style="padding:10px 12px;text-align:right;font-family:monospace;font-weight:700;color:#1f2937;font-size:15px">${totalQty.toFixed(2)} kg</td></tr>
 </tbody></table>
 ${f.notes?`<div style="margin-top:24px;padding:16px;border:1px solid #fde68a;border-radius:10px;background:#fffbeb">
 <div style="font-size:10px;color:#92400e;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;margin-bottom:8px">📝 Mixing / Further Instructions</div>
-<div style="font-size:13px;color:#374151;line-height:1.7;white-space:pre-wrap">${f.notes}</div></div>`:""}
+<div style="font-size:13px;color:#374151;line-height:1.7;white-space:pre-wrap">${escHtml(f.notes)}</div></div>`:""}
 ${(()=>{const s=f.sensory||{};const hasAny=Object.values(s).some(v=>v);if(!hasAny)return"";
 const sRows=[["Texture",s.texture],["Appearance",s.appearance],["Taste",s.taste],["Aroma",s.aroma],["Size / Granulation",s.size],["Internal Team Feedback",s.internalFeedback],["Customer Feedback",s.customerFeedback],["Others",s.others]].filter(r=>r[1]);
 let html='<div style="margin-top:24px;padding:16px;border:1px solid #e9d5ff;border-radius:10px;background:#faf5ff"><div style="font-size:10px;color:#7c3aed;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;margin-bottom:12px">🧪 Sensory Feedback</div>';
-if(s.imageUrl)html+='<img src="'+s.imageUrl+'" style="width:120px;height:120px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;margin-bottom:12px">';
+if(s.imageUrl&&s.imageUrl.startsWith("data:"))html+='<img src="'+escHtml(s.imageUrl)+'" style="width:120px;height:120px;object-fit:cover;border-radius:8px;border:1px solid #e5e7eb;margin-bottom:12px">';
 html+='<table style="width:100%;font-size:13px;border-collapse:collapse">';
-sRows.forEach(r=>{html+='<tr><td style="padding:6px 12px 6px 0;color:#6b7280;font-weight:600;vertical-align:top;white-space:nowrap;width:160px">'+r[0]+'</td><td style="padding:6px 0;color:#374151;white-space:pre-wrap">'+r[1]+'</td></tr>';});
+sRows.forEach(r=>{html+='<tr><td style="padding:6px 12px 6px 0;color:#6b7280;font-weight:600;vertical-align:top;white-space:nowrap;width:160px">'+escHtml(r[0])+'</td><td style="padding:6px 0;color:#374151;white-space:pre-wrap">'+escHtml(r[1])+'</td></tr>';});
 html+='</table></div>';return html;})()}
 <div style="margin-top:40px;border-top:1px solid #e5e7eb;padding-top:16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px">
 <div><div style="font-size:10px;color:#9ca3af;margin-bottom:24px">Prepared by:</div><div style="border-bottom:1px solid #d1d5db"></div></div>
@@ -738,86 +818,80 @@ function renderAdmin(){
     h("div",null,h("div",{className:"fs22 fw7 c1"},"Admin Panel"),h("div",{className:"c4 fs14 mt8"},"Manage users & PINs")),
     h("button",{className:"btn btn-s",onClick:()=>{ST.adm=false;render();}},"← Back")
   ));
-  // S1 PIN
+  // S1 PIN — can only change, never view (hashed on server)
   const s1Card=h("div",{className:"card mb24"});
   s1Card.appendChild(h("div",{className:"fs14 fw6 c2 mb16"},"📦 Section 1 — Ingredients PIN"));
   s1Card.appendChild(h("div",{className:"flex gap12 items-c"},
-    h("span",{className:"mono fs18 c3",id:"s1-display"},ST.s1pin),
+    h("span",{className:"c5 fs13"},"PIN is encrypted on server"),
     h("button",{className:"btn btn-s",style:{fontSize:12,padding:"4px 12px"},onClick:()=>{
-      const cur=document.getElementById("s1-display");const inp=document.getElementById("s1-edit");
-      if(inp){const v=inp.value;if(v.length>=4&&v.length<=6){ST.s1pin=v;savePin();flash("PIN updated");render();}else flash("PIN must be 4–6 digits");}
-      else{cur.outerHTML=`<input id="s1-edit" class="inp mono" style="width:160px;letter-spacing:.2em" value="${ST.s1pin}" maxlength="6">`;}
-    }},"Change")
+      const v=prompt("Enter new Section 1 PIN (4-6 digits):");
+      if(!v)return;
+      if(v.length<4||v.length>6||!/^\d+$/.test(v)){flash("PIN must be 4-6 digits");return;}
+      adminUpdateS1Pin(v).then(res=>{
+        if(res.ok)flash("Section 1 PIN updated");
+        else flash(res.error||"Failed to update PIN");
+      });
+    }},"Change PIN")
   ));
   wrap.appendChild(s1Card);
-  // Users
+  // Users — loaded via RPC, PINs never shown
   const uCard=h("div",{className:"card"});
   uCard.appendChild(h("div",{className:"fs14 fw6 c2 mb16"},"👥 Section 2, 3 & 4 — Users"));
-  ST.users.forEach(u=>{
-    uCard.appendChild(h("div",{className:"flex between items-c",style:{padding:14,marginBottom:8,borderRadius:10,border:"1px solid rgba(180,120,60,.12)",background:"rgba(30,15,5,.15)"}},
-      h("div",{className:"flex gap12 items-c"},
-        h("div",{style:{width:36,height:36,borderRadius:"50%",background:"rgba(120,53,15,.4)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fbbf24",fontWeight:700,fontSize:14}},u.id),
-        h("div",null,h("div",{className:"c1 fw6 fs14"},u.name),h("div",{className:"c4 fs12"},u.role==="admin"?"Admin":"User"))
-      ),
-      h("div",{className:"flex gap8 items-c"},
-        h("span",{className:"mono fs13 c3"},u.pin),
-        h("button",{className:"btn btn-s",style:{fontSize:11,padding:"3px 10px"},onClick:()=>{
-          const nn=prompt("Name:",u.name);if(!nn)return;
-          const np=prompt("PIN (4-6 digits):",u.pin);if(!np||np.length<4||np.length>6||!/^\d+$/.test(np))return flash("Invalid PIN");
-          if(ST.users.find(x=>x.pin===np&&x.id!==u.id))return flash("PIN in use");
-          u.name=nn;u.pin=np;saveUsers();flash("Updated");render();
-        }},"Edit")
-      )
-    ));
+  // Load users asynchronously
+  const uList=h("div",{id:"admin-users"},h("div",{className:"c5 fs13"},"Loading users..."));
+  uCard.appendChild(uList);
+  adminGetUsers().then(users=>{
+    const el=document.getElementById("admin-users");
+    if(!el)return;
+    el.innerHTML="";
+    if(!users.length){el.appendChild(h("div",{className:"c5"},"No users found"));return;}
+    ST.users=users.map(u=>({id:u.slot,name:u.name,role:u.role}));
+    users.forEach(u=>{
+      el.appendChild(h("div",{className:"flex between items-c",style:{padding:14,marginBottom:8,borderRadius:10,border:"1px solid rgba(180,120,60,.12)",background:"rgba(30,15,5,.15)"}},
+        h("div",{className:"flex gap12 items-c"},
+          h("div",{style:{width:36,height:36,borderRadius:"50%",background:"rgba(120,53,15,.4)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fbbf24",fontWeight:700,fontSize:14}},u.slot),
+          h("div",null,h("div",{className:"c1 fw6 fs14"},u.name),h("div",{className:"c4 fs12"},u.role==="admin"?"Admin":"User"))
+        ),
+        h("div",{className:"flex gap8 items-c"},
+          h("span",{className:"c5 fs12"},"PIN: ••••••"),
+          h("button",{className:"btn btn-s",style:{fontSize:11,padding:"3px 10px"},onClick:async()=>{
+            const nn=prompt("Name:",u.name);if(!nn)return;
+            const np=prompt("New PIN (4-6 digits, leave empty to keep current):");
+            if(np&&(np.length<4||np.length>6||!/^\d+$/.test(np)))return flash("Invalid PIN");
+            const res=await adminUpdateUser(u.slot,nn,np||null);
+            if(res.ok){flash("Updated");u.name=nn;if(ST.user&&ST.user.id===u.slot)ST.user.name=nn;render();}
+            else flash(res.error||"Update failed");
+          }},"Edit")
+        )
+      ));
+    });
   });
   wrap.appendChild(uCard);
   // Database Backup
   const bkCard=h("div",{className:"card mt24"});
   bkCard.appendChild(h("div",{className:"fs14 fw6 c2 mb8"},"💾 Database Backup"));
-  bkCard.appendChild(h("div",{className:"c5 fs12 mb16"},"Export all data as Excel file with multiple sheets. Use this for regular backups."));
+  bkCard.appendChild(h("div",{className:"c5 fs12 mb16"},"Export all data as Excel file with multiple sheets."));
   bkCard.appendChild(h("div",{className:"flex gap12 wrap"},
     h("button",{className:"btn btn-p",onClick:async()=>{
       try{
         flash("Preparing backup...");
-        // Fetch all tables
-        const{data:cfg}=await sb.from("config").select("*");
-        const{data:usr}=await sb.from("users").select("*").order("slot");
         const{data:ing}=await sb.from("ingredients").select("*").order("item_code");
         const{data:frm}=await sb.from("formulas").select("*").order("product_code,version");
         const{data:fi}=await sb.from("formula_ingredients").select("*");
         const{data:cst}=await sb.from("costings").select("*");
-        // Build workbook
         const wb=XLSX.utils.book_new();
-        if(cfg)XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(cfg),"Config");
-        if(usr)XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(usr),"Users");
         if(ing)XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(ing),"Ingredients");
         if(frm)XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(frm),"Formulas");
         if(fi)XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(fi),"Formula_Ingredients");
         if(cst)XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(cst),"Costings");
         const d=new Date().toISOString().slice(0,10);
         XLSX.writeFile(wb,"SpiceCalc_Backup_"+d+".xlsx");
-        flash("Backup complete — 6 sheets exported");
+        flash("Backup complete");
       }catch(e){console.error(e);flash("Backup failed: "+e.message);}
-    }},"⬇ Backup All (Excel)"),
-    h("button",{className:"btn btn-s",onClick:async()=>{
-      try{
-        flash("Preparing CSV backup...");
-        const tables=["config","users","ingredients","formulas","formula_ingredients","costings"];
-        for(const t of tables){
-          const{data}=await sb.from(t).select("*");
-          if(data&&data.length){
-            const ws=XLSX.utils.json_to_sheet(data);
-            const csv=XLSX.utils.sheet_to_csv(ws);
-            const blob=new Blob([csv],{type:"text/csv"});
-            const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="SpiceCalc_"+t+".csv";a.click();
-          }
-        }
-        flash("6 CSV files downloaded");
-      }catch(e){console.error(e);flash("Backup failed: "+e.message);}
-    }},"⬇ Backup All (CSV)")
+    }},"⬇ Backup All (Excel)")
   ));
   const stats=h("div",{className:"mt16",style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}});
-  [["Config",ST.s1pin?"1":"0"],["Users",ST.users.length],["Ingredients",ST.ings.length],["Formulas",ST.frms.length],["Formula Items",ST.frms.reduce((s,f)=>s+f.ingredients.filter(r=>r.itemCode).length,0)],["Costings",ST.csts.length]].forEach(([label,cnt])=>{
+  [["Ingredients",ST.ings.length],["Formulas",ST.frms.length],["Formula Items",ST.frms.reduce((s,f)=>s+f.ingredients.filter(r=>r.itemCode).length,0)],["Costings",ST.csts.length]].forEach(([label,cnt])=>{
     stats.appendChild(h("div",{style:{padding:"8px 12px",borderRadius:6,background:"rgba(30,15,5,.2)",border:"1px solid rgba(180,120,60,.1)"}},
       h("div",{className:"c5 fs11"},label),h("div",{className:"c2 fw6 fs16 mono"},String(cnt))
     ));
@@ -931,7 +1005,7 @@ function renderIngForm(){
         if(ST.ings.find(i=>i.itemCode.toLowerCase()===code.toLowerCase()&&i.id!==ST.ingEdit?.id))return document.getElementById("if-err").textContent="Code '"+code+"' already exists";
         const now=new Date().toISOString().slice(0,10);
         if(isEdit){Object.assign(ST.ingEdit,{itemCode:code,itemName:name,description:desc,packagingSize:pkg,pricePerKg:+price,updatedAt:now});await dbSaveIng(ST.ingEdit);}
-        else{const newIng={id:"new",itemCode:code,itemName:name,description:desc,packagingSize:pkg,pricePerKg:+price,createdAt:now,updatedAt:now};await dbSaveIng(newIng);ST.ings.push(newIng);}
+        else{const newIng={id:null,_isNew:true,itemCode:code,itemName:name,description:desc,packagingSize:pkg,pricePerKg:+price,createdAt:now,updatedAt:now};await dbSaveIng(newIng);ST.ings.push(newIng);}
         ST.ingForm=null;flash(isEdit?"Updated":"Added (Code: "+code+")");render();
       }},isEdit?"Update":"Add")
     )
@@ -952,7 +1026,7 @@ function importIngs(e){
   const file=e.target.files?.[0];if(!file)return;const r=new FileReader();
   r.onload=async ev=>{try{const wb=XLSX.read(ev.target.result,{type:"binary"});const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);const now=new Date().toISOString().slice(0,10);let a=0,u=0;
   for(const row of rows){let code=String(row["Item Code"]||row.itemCode||"").trim();if(!code){let n=1;while(ST.ings.some(i=>i.itemCode.toLowerCase()==="tmp-"+String(n).padStart(3,"0")))n++;code="TMP-"+String(n).padStart(3,"0");}const price=+(row["Price/KG"]||row.pricePerKg||0);const entry={itemCode:code,itemName:String(row["Item Name"]||row.itemName||"").trim(),description:String(row.Description||row.description||"").trim(),packagingSize:String(row["Packaging Size"]||row.packagingSize||"").trim(),pricePerKg:isNaN(price)?0:price,updatedAt:now};
-  const ex=ST.ings.findIndex(i=>i.itemCode.toLowerCase()===code.toLowerCase());if(ex>=0){Object.assign(ST.ings[ex],entry);await dbSaveIng(ST.ings[ex]);u++;}else{const newIng={...entry,id:"new",createdAt:now};await dbSaveIng(newIng);ST.ings.push(newIng);a++;}}
+  const ex=ST.ings.findIndex(i=>i.itemCode.toLowerCase()===code.toLowerCase());if(ex>=0){Object.assign(ST.ings[ex],entry);await dbSaveIng(ST.ings[ex]);u++;}else{const newIng={...entry,id:null,_isNew:true,createdAt:now};await dbSaveIng(newIng);ST.ings.push(newIng);a++;}}
   flash(a+" added, "+u+" updated");render();}catch(err){console.error(err);flash("Import failed");}e.target.value="";};r.readAsBinaryString(file);
 }
 
@@ -970,7 +1044,7 @@ function renderFormulas(){
   wrap.appendChild(h("div",{className:"flex between items-c wrap mb24 gap16"},
     h("div",null,h("div",{className:"fs22 fw7 c1"},"Formula Builder"),h("div",{className:"c4 fs14 mt8"},totalFormulas+" version"+(totalFormulas!==1?"s":"")+" · "+uniqueProducts+" product"+(uniqueProducts!==1?"s":"")+" · "+ST.user.name)),
     h("div",{className:"flex gap8 wrap"},
-      h("button",{className:"btn btn-p",onClick:()=>{ST.frmEdit={id:"f"+Date.now(),productCode:"",productName:"",batchSize:100,version:1,versionNote:"",active:true,inputMode:"kg",sensory:{},ingredients:[{itemCode:"",qty:0,pct:0}],createdBy:ST.user.id,createdAt:new Date().toISOString().slice(0,10),updatedAt:new Date().toISOString().slice(0,10)};ST.frmView="edit";render();}},"➕ New Formula"),
+      h("button",{className:"btn btn-p",onClick:()=>{ST.frmEdit={id:null,_isNew:true,productCode:"",productName:"",batchSize:100,version:1,versionNote:"",active:true,inputMode:"kg",sensory:{},ingredients:[{itemCode:"",qty:0,pct:0}],createdBy:ST.user.id,createdAt:new Date().toISOString().slice(0,10),updatedAt:new Date().toISOString().slice(0,10)};ST.frmView="edit";render();}},"➕ New Formula"),
       ST.frmSelMode?h("button",{className:"btn btn-p",onClick:()=>{const cnt=Object.values(ST.frmSel).filter(Boolean).length;if(!cnt){flash("Select at least 1 formula");return;}exportFrmsSelected();ST.frmSelMode=false;ST.frmSel={};render();}},"⬆ Excel ("+Object.values(ST.frmSel).filter(Boolean).length+")"):null,
       ST.frmSelMode?h("button",{className:"btn btn-p",style:{background:"#dc2626"},onClick:()=>{const cnt=Object.values(ST.frmSel).filter(Boolean).length;if(!cnt){flash("Select at least 1 formula");return;}exportFrmsPDF();ST.frmSelMode=false;ST.frmSel={};render();}},"📄 PDF ("+Object.values(ST.frmSel).filter(Boolean).length+")"):null,
       ST.frmSelMode?h("button",{className:"btn btn-s",onClick:()=>{ST.frmSelMode=false;ST.frmSel={};render();}},"✕ Cancel"):null,
@@ -994,14 +1068,30 @@ function renderFormulas(){
       h("div",{style:{flex:1,minWidth:0}},
         h("div",{className:"flex gap12 items-c mb8"},
           h("span",{className:"mono c3 fw6 fs14"},first.productCode),
-          h("span",{className:"c1 fw6"},first.productName),
+          h("span",{className:"c1 fw6",style:{cursor:"pointer"},title:"Click to edit name",onClick:e=>{
+            e.stopPropagation();
+            const span=e.currentTarget;const oldName=first.productName;
+            while(span.firstChild)span.removeChild(span.firstChild);
+            const inp=document.createElement("input");inp.className="inp fs14 fw6";inp.value=oldName;inp.style.cssText="padding:2px 8px;margin:-4px 0;width:200px;";
+            inp.addEventListener("blur",async()=>{
+              const nv=inp.value.trim();
+              if(nv&&nv!==oldName){
+                versions.forEach(v=>{v.productName=nv;});
+                for(const v of versions){await sb.from("formulas").update({product_name:nv,updated_at:new Date().toISOString()}).eq("id",v.id);}
+                flash("Name updated");
+              }
+              render();
+            });
+            inp.addEventListener("keydown",ev=>{if(ev.key==="Enter")inp.blur();if(ev.key==="Escape")render();});
+            span.appendChild(inp);inp.focus();inp.select();
+          }},first.productName),
           h("span",{className:"fs12",style:{background:"rgba(120,53,15,.4)",padding:"2px 10px",borderRadius:12,color:"#fbbf24",marginLeft:8}},versions.length+" version"+(versions.length>1?"s":""))
         )
       ),
       h("div",{className:"flex gap8 items-c",onClick:e=>e.stopPropagation()},
         !ST.frmSelMode?h("button",{className:"btn btn-s",style:{fontSize:11,padding:"4px 10px"},title:"New version from latest",onClick:()=>{
           const latest=versions[versions.length-1];const nv=Math.max(...versions.map(v=>v.version||1))+1;
-          ST.frmEdit={...latest,id:"f"+Date.now(),version:nv,versionNote:"",active:false,sensory:latest.sensory?{...latest.sensory}:{},ingredients:latest.ingredients.map(r=>({...r})),createdAt:new Date().toISOString().slice(0,10),updatedAt:new Date().toISOString().slice(0,10)};ST.frmView="edit";render();
+          ST.frmEdit={...latest,id:null,_isNew:true,version:nv,versionNote:"",active:false,sensory:latest.sensory?{...latest.sensory}:{},ingredients:latest.ingredients.map(r=>({...r})),createdAt:new Date().toISOString().slice(0,10),updatedAt:new Date().toISOString().slice(0,10)};ST.frmView="edit";render();
         }},"➕ New Version"):null,
         hasMultiple?h("button",{className:"abtn c4",style:{fontSize:16}},expanded?"▼":"▶"):null
       )
@@ -1317,10 +1407,11 @@ async function saveFrmEdit(){
   for(const r of f.ingredients.filter(r=>r.itemCode)){if(!ST.ings.some(i=>i.itemCode.toLowerCase()===r.itemCode.toLowerCase()))return document.getElementById("fe-err").textContent=`"${r.itemCode}" not in Ingredients`;}
   if(ST.frms.find(x=>x.productCode.toLowerCase()===f.productCode.toLowerCase()&&(x.version||1)===(f.version||1)&&x.id!==f.id&&x.createdBy===ST.user.id))return document.getElementById("fe-err").textContent="Product Code V"+(f.version||1)+" already exists";
   f.ingredients=f.ingredients.filter(r=>r.itemCode);f.updatedAt=new Date().toISOString().slice(0,10);
-  // Save formula first (to get UUID for new formulas)
-  await dbSaveFrm(f);
-  // Then deactivate other versions if this one is active
-  if(f.active){await dbDeactivateVersions(f.productCode,f.createdBy,f.id);ST.frms.filter(x=>x.productCode.toLowerCase()===f.productCode.toLowerCase()&&x.id!==f.id&&x.createdBy===ST.user.id).forEach(x=>x.active=false);}
+  // Atomic save via server-side RPC (handles ingredients + version deactivation in one transaction)
+  const ok=await dbSaveFrm(f);
+  if(!ok)return;
+  // Update local state: deactivate sibling versions if this one is active
+  if(f.active){ST.frms.filter(x=>x.productCode.toLowerCase()===f.productCode.toLowerCase()&&x.id!==f.id&&x.createdBy===ST.user.id).forEach(x=>x.active=false);}
   const ex=ST.frms.findIndex(x=>x.id===f.id);if(ex>=0)ST.frms[ex]=f;else ST.frms.push(f);
   flash("Saved — V"+(f.version||1));ST.frmView="list";render();
 }
@@ -1396,8 +1487,8 @@ function exportFrmsPDF(){
       f.ingredients.filter(r=>r.itemCode).forEach((ig,i)=>{
         const nm=getIngName(ig.itemCode);const pr=getIngPrice(ig.itemCode);
         ingRows+=`<tr><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280">${i+1}</td>
-          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-family:monospace;font-weight:600">${ig.itemCode}</td>
-          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${nm}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;font-family:monospace;font-weight:600">${escHtml(ig.itemCode)}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${escHtml(nm)}</td>
           <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right">${(+ig.qty).toFixed(4)}</td>
           <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right">${(+ig.pct).toFixed(2)}%</td>
           <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;font-family:monospace">${pr.toFixed(2)}</td></tr>`;
@@ -1408,25 +1499,25 @@ function exportFrmsPDF(){
       if(hasS){
         const sRows=[["Texture",s.texture],["Appearance",s.appearance],["Taste",s.taste],["Aroma",s.aroma],["Size / Granulation",s.size],["Internal Feedback",s.internalFeedback],["Customer Feedback",s.customerFeedback],["Others",s.others]].filter(r=>r[1]);
         sensoryHtml='<div style="margin-top:20px;padding:14px;border:1px solid #e9d5ff;border-radius:8px;background:#faf5ff"><div style="font-size:10px;color:#7c3aed;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;margin-bottom:10px">🧪 Sensory Feedback</div>';
-        if(s.imageUrl&&!s.imageUrl.startsWith("data:"))sensoryHtml+='<img src="'+s.imageUrl+'" style="width:100px;height:100px;object-fit:cover;border-radius:6px;margin-bottom:10px">';
-        else if(s.imageUrl)sensoryHtml+='<img src="'+s.imageUrl+'" style="max-width:150px;max-height:150px;object-fit:contain;border-radius:6px;margin-bottom:10px">';
+        if(s.imageUrl&&!s.imageUrl.startsWith("data:"))sensoryHtml+='<img src="'+escHtml(s.imageUrl)+'" style="width:100px;height:100px;object-fit:cover;border-radius:6px;margin-bottom:10px">';
+        else if(s.imageUrl)sensoryHtml+='<img src="'+escHtml(s.imageUrl)+'" style="max-width:150px;max-height:150px;object-fit:contain;border-radius:6px;margin-bottom:10px">';
         sensoryHtml+='<table style="width:100%;font-size:12px;border-collapse:collapse">';
-        sRows.forEach(r=>{sensoryHtml+='<tr><td style="padding:4px 10px 4px 0;color:#6b7280;font-weight:600;vertical-align:top;white-space:nowrap;width:140px">'+r[0]+'</td><td style="padding:4px 0;color:#374151;white-space:pre-wrap">'+r[1]+'</td></tr>';});
+        sRows.forEach(r=>{sensoryHtml+='<tr><td style="padding:4px 10px 4px 0;color:#6b7280;font-weight:600;vertical-align:top;white-space:nowrap;width:140px">'+escHtml(r[0])+'</td><td style="padding:4px 0;color:#374151;white-space:pre-wrap">'+escHtml(r[1])+'</td></tr>';});
         sensoryHtml+='</table></div>';
       }
       pages+=`
       ${pi>0?'<div style="page-break-before:always"></div>':''}
       <div style="margin-bottom:30px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding-bottom:12px;border-bottom:2px solid #f59e0b">
-          <div><span style="font-size:20px;font-weight:800;color:#92400e">${f.productCode}</span> <span style="font-size:16px;color:#78350f;margin-left:8px">${f.productName}</span></div>
+          <div><span style="font-size:20px;font-weight:800;color:#92400e">${escHtml(f.productCode)}</span> <span style="font-size:16px;color:#78350f;margin-left:8px">${escHtml(f.productName)}</span></div>
           <div style="text-align:right"><span style="font-size:12px;color:#92400e;font-weight:600">V${f.version||1}</span>${f.active?'<span style="font-size:10px;background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:4px;margin-left:8px">ACTIVE</span>':''}
-          <div style="font-size:10px;color:#9ca3af;margin-top:4px">Updated: ${f.updatedAt||f.createdAt||""}</div></div>
+          <div style="font-size:10px;color:#9ca3af;margin-top:4px">Updated: ${escHtml(f.updatedAt||f.createdAt||"")}</div></div>
         </div>
         <div style="display:flex;gap:16px;margin-bottom:16px;font-size:12px">
           <div style="padding:8px 14px;background:#fef3c7;border-radius:6px"><b>Batch:</b> ${f.batchSize} kg</div>
           <div style="padding:8px 14px;background:#fef3c7;border-radius:6px"><b>Total %:</b> ${tp.toFixed(1)}%</div>
           <div style="padding:8px 14px;background:#fef3c7;border-radius:6px"><b>Cost/KG:</b> ${cpk.toFixed(2)}</div>
-          ${f.versionNote?'<div style="padding:8px 14px;background:#f3f4f6;border-radius:6px"><b>Note:</b> '+f.versionNote+'</div>':''}
+          ${f.versionNote?'<div style="padding:8px 14px;background:#f3f4f6;border-radius:6px"><b>Note:</b> '+escHtml(f.versionNote)+'</div>':''}
         </div>
         <table style="width:100%;border-collapse:collapse;font-size:13px">
           <thead><tr style="background:#fef3c7">
@@ -1444,7 +1535,7 @@ function exportFrmsPDF(){
             <td style="padding:8px 12px;text-align:right">${cpk.toFixed(2)}</td></tr>
           </tbody>
         </table>
-        ${f.notes?'<div style="margin-top:16px;padding:12px;border:1px solid #fde68a;border-radius:8px;background:#fffbeb"><div style="font-size:10px;color:#92400e;text-transform:uppercase;font-weight:600;margin-bottom:6px">📝 Mixing / Further Instructions</div><div style="font-size:12px;color:#374151;line-height:1.6;white-space:pre-wrap">'+f.notes+'</div></div>':''}
+        ${f.notes?'<div style="margin-top:16px;padding:12px;border:1px solid #fde68a;border-radius:8px;background:#fffbeb"><div style="font-size:10px;color:#92400e;text-transform:uppercase;font-weight:600;margin-bottom:6px">📝 Mixing / Further Instructions</div><div style="font-size:12px;color:#374151;line-height:1.6;white-space:pre-wrap">'+escHtml(f.notes)+'</div></div>':''}
         ${sensoryHtml}
       </div>`;
     });
@@ -1453,7 +1544,7 @@ function exportFrmsPDF(){
       <div style="text-align:center;margin-bottom:30px">
         <div style="font-size:28px;font-weight:800;color:#92400e">🌶️ SpiceCalc by Hexafood</div>
         <div style="font-size:11px;color:#b45309;letter-spacing:2px;text-transform:uppercase">Formula Export</div>
-        <div style="font-size:11px;color:#9ca3af;margin-top:6px">${today} · ${ST.user?.name||"User"} · ${selF.length} formula${selF.length>1?"s":""}</div>
+        <div style="font-size:11px;color:#9ca3af;margin-top:6px">${escHtml(today)} · ${escHtml(ST.user?.name||"User")} · ${selF.length} formula${selF.length>1?"s":""}</div>
       </div>
       ${pages}
       <div style="margin-top:40px;border-top:1px solid #e5e7eb;padding-top:16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px">
@@ -1473,7 +1564,7 @@ function importFrms(e){
   r.onload=async ev=>{try{const wb=XLSX.read(ev.target.result,{type:"binary"});const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);const now=new Date().toISOString().slice(0,10);const grp={};
   rows.forEach(r=>{const pc=String(r["Product Code"]||"").trim();const ic=String(r["Item Code"]||"").trim();if(!pc||!ic)return;const ver=+(r["Version"]||1);const gk=pc.toLowerCase()+"_v"+ver;if(!grp[gk])grp[gk]={productCode:pc,productName:String(r["Product Name"]||"").trim(),batchSize:+(r["Batch Size (kg)"]||100),version:ver,versionNote:String(r["Version Note"]||"").trim(),active:String(r["Active"]||"").toLowerCase()==="yes",ingredients:[]};grp[gk].ingredients.push({itemCode:ic,qty:+(r["Qty (kg)"]||0),pct:+(r["%"]||0)});});
   let a=0,u=0;for(const g of Object.values(grp)){const entry={...g,inputMode:"kg",createdBy:ST.user.id,updatedAt:now};const ex=ST.frms.findIndex(f=>f.productCode.toLowerCase()===g.productCode.toLowerCase()&&(f.version||1)===g.version&&f.createdBy===ST.user.id);
-  if(ex>=0){Object.assign(ST.frms[ex],entry);await dbSaveFrm(ST.frms[ex]);u++;}else{const newFrm={...entry,id:"new",createdAt:now};await dbSaveFrm(newFrm);ST.frms.push(newFrm);a++;}}
+  if(ex>=0){Object.assign(ST.frms[ex],entry);await dbSaveFrm(ST.frms[ex]);u++;}else{const newFrm={...entry,id:null,_isNew:true,createdAt:now};await dbSaveFrm(newFrm);ST.frms.push(newFrm);a++;}}
   flash(a+" added, "+u+" updated");render();}catch(err){console.error(err);flash("Import failed");}e.target.value="";};r.readAsBinaryString(file);
 }
 
