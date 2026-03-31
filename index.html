@@ -464,7 +464,7 @@ function renderNav(){
 /* ─── Footer ─── */
 function renderFooter(){
   const link=h("a",{href:"https://www.hexaiot.com.my",target:"_blank"},"www.hexaiot.com.my");
-  return h("div",{className:"ftr"},h("span",null,"SpiceCalc by Hexafood v2.0"),h("span",null,"Created by Hexafood · ",link),h("span",null,"Auto-locks after 30 min"));
+  return h("div",{className:"ftr"},h("span",null,"SpiceCalc by Hexafood v2.1"),h("span",null,"Created by Hexafood · ",link),h("span",null,"Auto-locks after 30 min"));
 }
 
 /* ─── PIN Screen ─── */
@@ -610,8 +610,8 @@ function renderCosting(){
     // Profit margin
     grid.appendChild(h("div",null,
       h("div",{className:"lbl"},"Profit Margin %"),
-      h("input",{id:"cst-margin",className:"inp",type:"number",step:"0.1",min:"0",value:d.margin,placeholder:"30",
-        onInput:e=>{d.margin=+e.target.value||0;updateCostCalc();}})
+      h("input",{id:"cst-margin",className:"inp",type:"number",step:"0.1",min:"0",max:"95",value:d.margin,placeholder:"30",
+        onInput:e=>{d.margin=Math.min(+e.target.value||0,95);updateCostCalc();}})
     ));
     // Grammage
     grid.appendChild(h("div",null,
@@ -697,8 +697,8 @@ function calcTotalCostPerKg(c){
 }
 function calcSellingPrice(c){
   const total=calcTotalCostPerKg(c);
-  const margin=(c.margin||0)/100;
-  return margin>=1?total*99:total/(1-margin);
+  const margin=Math.min((c.margin||0),95)/100;
+  return total/(1-margin);
 }
 
 function updateCostCalc(){
@@ -706,8 +706,8 @@ function updateCostCalc(){
   const raw=d.rawPerKg||0;
   const wastageAdj=raw*(1+(d.wastage||0)/100);
   const totalCost=wastageAdj+(d.packaging||0)+(d.outerPkg||0)+(d.labor||0)+(d.shipping||0)+(d.document||0)+(d.lab||0)+(d.other||0);
-  const margin=(d.margin||0)/100;
-  const sellingPrice=margin>=1?totalCost*99:totalCost/(1-margin);
+  const margin=Math.min((d.margin||0),95)/100;
+  const sellingPrice=totalCost/(1-margin);
   const profit=sellingPrice-totalCost;
 
   const el=document.getElementById("cost-results");
