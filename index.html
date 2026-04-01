@@ -119,6 +119,11 @@ let ST={tab:"dash",s1:false,user:null,adm:false,ings:[],frms:[],csts:[],users:[]
   costSel:null,costData:null,costCompare:false,costCompareIds:[],
   batchSel:null,batchSize:0,batchDetail:false,
   dbOk:false,
+  /* Sharing */
+  shareModal:null, /* {formulaId, formulaCode, shares:[], loading:false} */
+  sharedWithMe:{}, /* {formulaId: {permission, sharedBy}} */
+  sharedByMe:{}, /* {formulaId: count} — how many users this formula is shared with */
+  frmShowShared:true, /* toggle "Shared with me" section */
 };
 
 let _toastTimer;
@@ -198,7 +203,58 @@ function authLogout(){
 
 /* ─── Role helpers ─── */
 function isManager(){return ST.user&&(ST.user.role==="manager"||ST.user.role==="admin");}
+function isExec(){return ST.user&&ST.user.role==="user";}
 function getUserName(slot){const u=ST.users.find(x=>x.id===slot);return u?u.name:("User "+slot);}
+
+/* ─── Sharing helpers ─── */
+function canShare(f){return isManager()||(ST.user&&f.createdBy===ST.user.id);}
+function isSharedWithMe(fId){return !!ST.sharedWithMe[fId];}
+function getSharePermission(fId){return ST.sharedWithMe[fId]?.permission||null;}
+
+async function dbLoadSharedWithMe(){
+  if(!ST.user)return;
+  try{
+    const{data,error}=await sb.from("shared_formulas").select("formula_id,permission,shared_by").eq("shared_with",ST.user.id);
+    if(!error&&data){
+      ST.sharedWithMe={};
+      data.forEach(s=>{ST.sharedWithMe[s.formula_id]={permission:s.permission,sharedBy:s.shared_by};});
+    }
+  }catch(e){console.error("Load shares error:",e);}
+  /* Also load outgoing shares count */
+  try{
+    const{data:outgoing,error:oErr}=await sb.from("shared_formulas").select("formula_id").eq("shared_by",ST.user.id);
+    if(!oErr&&outgoing){
+      ST.sharedByMe={};
+      outgoing.forEach(s=>{ST.sharedByMe[s.formula_id]=(ST.sharedByMe[s.formula_id]||0)+1;});
+    }
+  }catch(e){console.error("Load outgoing shares error:",e);}
+}
+
+async function openShareModal(f){
+  ST.shareModal={formulaId:f.id,formulaCode:f.productCode+" V"+(f.version||1),shares:[],loading:true};
+  render();
+  try{
+    const{data}=await sb.rpc("get_formula_shares",{p_formula_id:f.id});
+    if(data&&data.ok)ST.shareModal.shares=data.shares||[];
+  }catch(e){console.error("Get shares error:",e);}
+  ST.shareModal.loading=false;
+  render();
+}
+
+async function doShare(formulaId,sharedWith,permission){
+  const{data,error}=await sb.rpc("share_formula",{p_formula_id:formulaId,p_shared_with:sharedWith,p_permission:permission});
+  if(error){flash("Share failed: "+error.message,"error");return false;}
+  if(data&&!data.ok){flash(data.error||"Share failed","error");return false;}
+  logAudit("share","formula",formulaId,{sharedWith,permission});
+  return true;
+}
+
+async function doUnshare(formulaId,sharedWith){
+  const{data,error}=await sb.rpc("unshare_formula",{p_formula_id:formulaId,p_shared_with:sharedWith});
+  if(error){flash("Unshare failed: "+error.message,"error");return false;}
+  logAudit("unshare","formula",formulaId,{sharedWith});
+  return true;
+}
 
 /* ─── DB Operations ─── */
 async function dbLoadAll(){
@@ -218,6 +274,8 @@ async function dbLoadAll(){
     const{data:csts}=await sb.from("costings").select("*");
     if(csts)ST.csts=csts.map(costFromDb);
     try{const{data:ph}=await sb.from("price_history").select("*").order("changed_at",{ascending:false}).limit(500);if(ph)ST.priceHist=ph;}catch(e){ST.priceHist=[];}
+    /* Load shared-with-me data */
+    await dbLoadSharedWithMe();
     ST.dbOk=true;
   }catch(e){console.error("DB load error",e);ST.dbOk=false;}
 }
@@ -365,6 +423,7 @@ function render(){
   if(ST.toast)app.appendChild(h("div",{className:"toast"+(ST.toastType==="error"?" err-toast":"")},ST.toast));
   if(ST.confirm)app.appendChild(renderConfirm());
   if(ST.ingForm!==null)app.appendChild(renderIngForm());
+  if(ST.shareModal)app.appendChild(renderShareModal());
 
   /* Restore focus after re-render */
   requestAnimationFrame(()=>{
@@ -409,7 +468,7 @@ function renderHeader(){
         h("input",{id:"global-search",className:"inp",style:{width:220,fontSize:12,padding:"6px 12px 6px 28px",borderRadius:20,background:"rgba(30,15,5,.5)"},placeholder:"🔍 Search everything...",value:ST.globalSearch||"",
           onInput:e=>{ST.globalSearch=e.target.value;runGlobalSearch();},
           onFocus:()=>{if(ST.globalSearch)runGlobalSearch();},
-          onBlur:()=>{setTimeout(()=>{ST.globalSearchResults=null;render();},250);}
+          onBlur:()=>{if(_gsBlurTimer)clearTimeout(_gsBlurTimer);_gsBlurTimer=setTimeout(()=>{_gsBlurTimer=null;ST.globalSearchResults=null;render();},250);}
         }),
         ST.globalSearchResults?renderGlobalSearchDropdown():null
       ),
@@ -422,20 +481,29 @@ function renderHeader(){
 }
 
 /* ─── Global Search ─── */
+let _gsBlurTimer=null;
+let _gsDebounce=null;
 function runGlobalSearch(){
-  const q=(ST.globalSearch||"").toLowerCase().trim();
-  if(!q||q.length<2){ST.globalSearchResults=null;render();return;}
-  const results=[];
-  // Search ingredients
-  ST.ings.filter(i=>i.itemCode.toLowerCase().includes(q)||(i.itemName||"").toLowerCase().includes(q)||(i.description||"").toLowerCase().includes(q))
-    .slice(0,5).forEach(i=>results.push({type:"Ingredient",icon:"📦",label:i.itemCode,sub:i.itemName||"",action:()=>{ST.tab="ing";ST.ingSearch=q;ST.globalSearch="";ST.globalSearchResults=null;render();}}));
-  // Search formulas
-  ST.frms.filter(f=>f.productCode.toLowerCase().includes(q)||f.productName.toLowerCase().includes(q)||(f.versionNote||"").toLowerCase().includes(q)||(f.notes||"").toLowerCase().includes(q)||f.ingredients.some(r=>r.itemCode.toLowerCase().includes(q)))
-    .slice(0,5).forEach(f=>results.push({type:"Formula",icon:"🧪",label:f.productCode+" V"+(f.version||1),sub:f.productName+" ("+getUserName(f.createdBy)+")",action:()=>{ST.tab="frm";ST.frmSearch=q;ST.globalSearch="";ST.globalSearchResults=null;render();}}));
-  // Search costings
-  ST.csts.filter(c=>c.productCode.toLowerCase().includes(q)||(c.label||"").toLowerCase().includes(q))
-    .slice(0,3).forEach(c=>results.push({type:"Costing",icon:"🧮",label:c.productCode,sub:c.label||"",action:()=>{ST.tab="cost";ST.costSel=c.formulaId;ST.costData={...c};ST.globalSearch="";ST.globalSearchResults=null;render();}}));
-  ST.globalSearchResults=results;render();
+  /* Cancel any pending blur dismissal — user is still typing */
+  if(_gsBlurTimer){clearTimeout(_gsBlurTimer);_gsBlurTimer=null;}
+  /* Debounce the actual search+render to avoid thrashing */
+  if(_gsDebounce)clearTimeout(_gsDebounce);
+  _gsDebounce=setTimeout(()=>{
+    _gsDebounce=null;
+    const q=(ST.globalSearch||"").toLowerCase().trim();
+    if(!q||q.length<2){ST.globalSearchResults=null;render();return;}
+    const results=[];
+    // Search ingredients
+    ST.ings.filter(i=>i.itemCode.toLowerCase().includes(q)||(i.itemName||"").toLowerCase().includes(q)||(i.description||"").toLowerCase().includes(q))
+      .slice(0,5).forEach(i=>results.push({type:"Ingredient",icon:"📦",label:i.itemCode,sub:i.itemName||"",action:()=>{ST.tab="ing";ST.ingSearch=q;ST.globalSearch="";ST.globalSearchResults=null;render();}}));
+    // Search formulas
+    ST.frms.filter(f=>f.productCode.toLowerCase().includes(q)||f.productName.toLowerCase().includes(q)||(f.versionNote||"").toLowerCase().includes(q)||(f.notes||"").toLowerCase().includes(q)||f.ingredients.some(r=>r.itemCode.toLowerCase().includes(q)))
+      .slice(0,5).forEach(f=>results.push({type:"Formula",icon:"🧪",label:f.productCode+" V"+(f.version||1),sub:f.productName+" ("+getUserName(f.createdBy)+")",action:()=>{ST.tab="frm";ST.frmSearch=q;ST.globalSearch="";ST.globalSearchResults=null;render();}}));
+    // Search costings
+    ST.csts.filter(c=>c.productCode.toLowerCase().includes(q)||(c.label||"").toLowerCase().includes(q))
+      .slice(0,3).forEach(c=>results.push({type:"Costing",icon:"🧮",label:c.productCode,sub:c.label||"",action:()=>{ST.tab="cost";ST.costSel=c.formulaId;ST.costData={...c};ST.globalSearch="";ST.globalSearchResults=null;render();}}));
+    ST.globalSearchResults=results;render();
+  },150);
 }
 
 function renderGlobalSearchDropdown(){
@@ -1213,8 +1281,12 @@ function importIngs(e){
 /* ═══ FORMULAS ═══ */
 function renderFormulas(){
   if(ST.frmView==="edit")return renderFrmEditor();
-  const myF=isManager()?ST.frms:ST.frms.filter(f=>f.createdBy===ST.user.id);
+  /* Own + managed formulas (exclude shared-with-me from this list) */
+  const myF=isManager()?ST.frms.filter(f=>!isSharedWithMe(f.id)):ST.frms.filter(f=>f.createdBy===ST.user.id);
+  /* Shared-with-me formulas (Execs only — managers/admins already see all) */
+  const sharedF=isExec()?ST.frms.filter(f=>isSharedWithMe(f.id)&&f.createdBy!==ST.user.id):[];
   const fil=myF.filter(f=>{const s=ST.frmSearch.toLowerCase();return!s||f.productCode.toLowerCase().includes(s)||f.productName.toLowerCase().includes(s)||(f.versionNote||"").toLowerCase().includes(s);});
+  const filShared=sharedF.filter(f=>{const s=ST.frmSearch.toLowerCase();return!s||f.productCode.toLowerCase().includes(s)||f.productName.toLowerCase().includes(s)||(f.versionNote||"").toLowerCase().includes(s);});
   // Group by productCode + createdBy for manager view
   const groups={};fil.forEach(f=>{const k=isManager()?f.productCode.toLowerCase()+"_by_"+f.createdBy:f.productCode.toLowerCase();if(!groups[k])groups[k]=[];groups[k].push(f);});
   // Sort versions within each group
@@ -1306,6 +1378,7 @@ function renderFormulas(){
           f.versionNote?h("span",{className:"c5 fs12"},"— "+f.versionNote):null,
           f.notes?h("span",{className:"fs12",style:{color:"#60a5fa"}},"📝"):null,
           f.sensory&&Object.values(f.sensory).some(v=>v)?h("span",{className:"fs12",style:{color:"#a78bfa"}},"🧪"):null,
+          ST.sharedByMe[f.id]?h("span",{style:{fontSize:10,background:"rgba(167,139,250,.15)",color:"#a78bfa",padding:"2px 8px",borderRadius:8,fontWeight:600}},"🔗 "+ST.sharedByMe[f.id]):null,
           h("span",{className:"fs12 c4"},"Items: "+f.ingredients.filter(r=>r.itemCode).length),
           h("span",{className:"fs12 "+(Math.abs(tp-100)<.1?"cg":"co")},tp.toFixed(1)+"%"),
           h("span",{className:"fs12 c3 mono fw6"},"Cost/KG: "+cpk.toFixed(2)),
@@ -1317,6 +1390,8 @@ function renderFormulas(){
           isManager()&&f.approvalStatus==="pending"?h("button",{className:"abtn",title:"Approve",style:{color:"#34d399",fontSize:12},onClick:async()=>{f.approvalStatus="approved";await sb.from("formulas").update({approval_status:"approved",updated_at:new Date().toISOString()}).eq("id",f.id);logAudit("approve","formula",f.id,{productCode:f.productCode,version:f.version});flash("Formula approved");render();}},"✅"):null,
           isManager()&&f.approvalStatus==="pending"?h("button",{className:"abtn",title:"Reject",style:{color:"#f87171",fontSize:12},onClick:async()=>{const reason=prompt("Rejection reason (optional):");f.approvalStatus="rejected";await sb.from("formulas").update({approval_status:"rejected",updated_at:new Date().toISOString()}).eq("id",f.id);logAudit("reject","formula",f.id,{productCode:f.productCode,version:f.version,reason});flash("Formula rejected");render();}},"❌"):null,
           !f.active?h("button",{className:"abtn",title:"Set Active",style:{color:"#34d399",fontSize:14},onClick:async()=>{for(const v of versions){v.active=false;await dbSetActive(v.id,false);}f.active=true;await dbSetActive(f.id,true);flash("V"+(f.version||1)+" set as Active");render();}},"🔛"):null,
+          /* Share button — visible to owners and managers */
+          canShare(f)?h("button",{className:"abtn",title:"Share",style:{color:"#a78bfa",fontSize:13},onClick:()=>{openShareModal(f);}},"🔗"):null,
           h("button",{className:"abtn",title:"Edit",style:{color:"#60a5fa"},onClick:()=>{ST.frmEdit={...f,inputMode:f.inputMode||"kg",sensory:f.sensory?{...f.sensory}:{},ingredients:f.ingredients.map(r=>({...r}))};ST.frmView="edit";render();}},"✏️"),
           h("button",{className:"abtn cr",title:"Delete",onClick:()=>{const linkedCosts=ST.csts.filter(c=>c.formulaId===f.id).length;ST.confirm={msg:`Delete V${f.version||1} of "${f.productCode}"?`+(linkedCosts?`\n\n⚠️ This will also delete ${linkedCosts} linked costing${linkedCosts>1?"s":""}!`:""),action:async()=>{await busy(async()=>{await dbDeleteFrm(f.id);ST.frms=ST.frms.filter(x=>x.id!==f.id);ST.csts=ST.csts.filter(c=>c.formulaId!==f.id);flash("Deleted");});render();}};render();}},"🗑️")
         ):null
@@ -1328,27 +1403,219 @@ function renderFormulas(){
     }
     wrap.appendChild(card);
   });
+
+  /* ─── Shared with me section (Execs only) ─── */
+  if(isExec()&&sharedF.length>0){
+    const sharedSection=h("div",{className:"mt24 mb16"});
+    sharedSection.appendChild(h("div",{className:"flex between items-c mb16",style:{cursor:"pointer"},onClick:()=>{ST.frmShowShared=!ST.frmShowShared;render();}},
+      h("div",{className:"flex gap12 items-c"},
+        h("span",{style:{fontSize:18}},"📥"),
+        h("div",null,
+          h("div",{className:"fs14 fw6 c2"},"Shared with Me"),
+          h("div",{className:"c5 fs12"},filShared.length+" formula"+(filShared.length!==1?"s":"")+" shared with you")
+        )
+      ),
+      h("button",{className:"abtn c4",style:{fontSize:16}},ST.frmShowShared?"▼":"▶")
+    ));
+    if(ST.frmShowShared){
+      if(filShared.length===0){
+        sharedSection.appendChild(h("div",{className:"card text-c",style:{padding:"30px 0"}},h("div",{className:"c5 fs13"},ST.frmSearch?"No shared formulas match your search":"No formulas shared with you yet")));
+      }else{
+        /* Group shared formulas */
+        const sharedGroups={};filShared.forEach(f=>{const k=f.productCode.toLowerCase()+"_by_"+f.createdBy;if(!sharedGroups[k])sharedGroups[k]=[];sharedGroups[k].push(f);});
+        Object.values(sharedGroups).forEach(g=>g.sort((a,b)=>(a.version||1)-(b.version||1)));
+        Object.entries(sharedGroups).forEach(([key,versions])=>{
+          const first=versions[0];
+          const highestPerm=versions.some(v=>getSharePermission(v.id)==="edit")?"edit":"view";
+          const card=h("div",{className:"card mb16",style:{borderLeft:"3px solid rgba(167,139,250,.5)"}});
+          /* Header */
+          card.appendChild(h("div",{className:"flex between items-c wrap gap12"},
+            h("div",{style:{flex:1,minWidth:0}},
+              h("div",{className:"flex gap12 items-c mb8"},
+                h("span",{className:"mono c3 fw6 fs14"},first.productCode),
+                h("span",{className:"c1 fw6"},first.productName),
+                h("span",{style:{fontSize:10,background:"rgba(167,139,250,.2)",color:"#a78bfa",padding:"2px 10px",borderRadius:12,fontWeight:600}},"📥 SHARED"),
+                h("span",{style:{fontSize:10,background:highestPerm==="edit"?"rgba(52,211,153,.15)":"rgba(251,191,36,.15)",color:highestPerm==="edit"?"#34d399":"#fbbf24",padding:"2px 10px",borderRadius:12,fontWeight:600}},highestPerm==="edit"?"CAN EDIT":"VIEW ONLY"),
+                h("span",{className:"fs12",style:{background:"rgba(96,165,250,.15)",padding:"2px 10px",borderRadius:12,color:"#60a5fa"}},
+                  "👤 "+getUserName(first.createdBy))
+              )
+            )
+          ));
+          /* Version rows */
+          versions.forEach(f=>{
+            const tc=f.ingredients.reduce((s,r)=>s+((+r.qty||0)*getIngPrice(r.itemCode)),0);
+            const tp=f.ingredients.reduce((s,r)=>s+(+r.pct||0),0);
+            const tq=f.ingredients.reduce((s,r)=>s+(+r.qty||0),0);
+            const cpk=tq>0?tc/tq:0;
+            const fp=getSharePermission(f.id);
+            const canEdit=fp==="edit";
+            const vRow=h("div",{style:{padding:"10px 14px",marginTop:8,borderRadius:8,border:"1px solid rgba(167,139,250,.2)",background:"rgba(167,139,250,.04)",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"},
+              onClick:()=>{
+                if(canEdit){
+                  ST.frmEdit={...f,inputMode:f.inputMode||"kg",sensory:f.sensory?{...f.sensory}:{},ingredients:f.ingredients.map(r=>({...r}))};ST.frmView="edit";render();
+                }else{
+                  /* View-only: open editor but mark as read-only */
+                  ST.frmEdit={...f,_viewOnly:true,inputMode:f.inputMode||"kg",sensory:f.sensory?{...f.sensory}:{},ingredients:f.ingredients.map(r=>({...r}))};ST.frmView="edit";render();
+                }
+              }},
+              h("div",{className:"flex gap12 items-c wrap",style:{flex:1,minWidth:0}},
+                h("span",{className:"fw6 fs13",style:{color:f.active?"#34d399":"#fbbf24"}},"V"+(f.version||1)),
+                f.active?h("span",{style:{fontSize:10,background:"rgba(52,211,153,.2)",color:"#34d399",padding:"2px 8px",borderRadius:8,fontWeight:600}},"ACTIVE"):null,
+                f.versionNote?h("span",{className:"c5 fs12"},"— "+f.versionNote):null,
+                h("span",{className:"fs12 c4"},"Items: "+f.ingredients.filter(r=>r.itemCode).length),
+                h("span",{className:"fs12 "+(Math.abs(tp-100)<.1?"cg":"co")},tp.toFixed(1)+"%"),
+                h("span",{className:"fs12 c3 mono fw6"},"Cost/KG: "+cpk.toFixed(2)),
+                h("span",{className:"fs12 c5"},f.updatedAt||"")
+              ),
+              h("div",{className:"flex gap4",onClick:e=>e.stopPropagation()},
+                canEdit?h("button",{className:"abtn",title:"Edit (shared)",style:{color:"#60a5fa"},onClick:()=>{ST.frmEdit={...f,inputMode:f.inputMode||"kg",sensory:f.sensory?{...f.sensory}:{},ingredients:f.ingredients.map(r=>({...r}))};ST.frmView="edit";render();}},"✏️"):
+                h("button",{className:"abtn",title:"View (read-only)",style:{color:"#a78bfa"},onClick:()=>{ST.frmEdit={...f,_viewOnly:true,inputMode:f.inputMode||"kg",sensory:f.sensory?{...f.sensory}:{},ingredients:f.ingredients.map(r=>({...r}))};ST.frmView="edit";render();}},"👁️")
+              )
+            );
+            card.appendChild(vRow);
+          });
+          sharedSection.appendChild(card);
+        });
+      }
+    }
+    wrap.appendChild(sharedSection);
+  }
   wrap.appendChild(h("div",{className:"card mt16",style:{padding:14}},h("div",{className:"fs12 c5"},h("strong",{className:"c4"},"Excel: "),"\"Product Code\",\"Product Name\",\"Version\",\"Version Note\",\"Batch Size (kg)\",\"Item Code\",\"Qty (kg)\",\"%\"")));
   return wrap;
+}
+
+/* ─── Share Modal ─── */
+function renderShareModal(){
+  const m=ST.shareModal;if(!m)return h("div",null);
+  const otherUsers=ST.users.filter(u=>u.id!==ST.user.id);
+  const currentShares=m.shares||[];
+  const sharedSlots=new Set(currentShares.map(s=>s.shared_with));
+
+  const modal=h("div",{className:"modal",style:{maxWidth:500}});
+  modal.appendChild(h("div",{className:"flex between items-c mb24"},
+    h("div",null,
+      h("div",{className:"fs18 fw7 c1"},"🔗 Share Formula"),
+      h("div",{className:"c4 fs13 mt8"},m.formulaCode)
+    ),
+    h("button",{className:"abtn c5",style:{fontSize:18},onClick:()=>{ST.shareModal=null;render();}},"✕")
+  ));
+
+  if(m.loading){
+    modal.appendChild(h("div",{className:"text-c c5",style:{padding:"30px 0"}},"Loading shares..."));
+  }else{
+    /* Current shares list */
+    if(currentShares.length>0){
+      modal.appendChild(h("div",{className:"lbl mb8"},"Currently Shared With"));
+      const shareList=h("div",{style:{marginBottom:20}});
+      currentShares.forEach(s=>{
+        shareList.appendChild(h("div",{className:"flex between items-c",style:{padding:"8px 12px",marginBottom:6,borderRadius:8,border:"1px solid rgba(167,139,250,.2)",background:"rgba(167,139,250,.06)"}},
+          h("div",{className:"flex gap12 items-c"},
+            h("div",{style:{width:32,height:32,borderRadius:"50%",background:"rgba(120,53,15,.4)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fbbf24",fontWeight:700,fontSize:12}},s.shared_with),
+            h("div",null,
+              h("div",{className:"c2 fw6 fs13"},s.user_name||getUserName(s.shared_with)),
+              h("div",{className:"fs11 c5"},"Shared by "+getUserName(s.shared_by))
+            )
+          ),
+          h("div",{className:"flex gap8 items-c"},
+            h("select",{className:"inp",style:{width:90,fontSize:11,padding:"4px 6px"},value:s.permission,onChange:async e=>{
+              const newPerm=e.target.value;
+              await busy(async()=>{
+                const ok=await doShare(m.formulaId,s.shared_with,newPerm);
+                if(ok){s.permission=newPerm;flash("Permission updated");render();}
+              });
+            }},
+              h("option",{value:"view",selected:s.permission==="view"},"View"),
+              h("option",{value:"edit",selected:s.permission==="edit"},"Edit")
+            ),
+            h("button",{className:"abtn cr",title:"Revoke access",style:{fontSize:13},onClick:async()=>{
+              await busy(async()=>{
+                const ok=await doUnshare(m.formulaId,s.shared_with);
+                if(ok){
+                  m.shares=m.shares.filter(x=>x.shared_with!==s.shared_with);
+                  await dbLoadSharedWithMe();
+                  flash("Access revoked");render();
+                }
+              });
+            }},"✕")
+          )
+        ));
+      });
+      modal.appendChild(shareList);
+    }
+
+    /* Add new share */
+    const unsharedUsers=otherUsers.filter(u=>!sharedSlots.has(u.id));
+    if(unsharedUsers.length>0){
+      modal.appendChild(h("div",{className:"lbl mb8"},"Share With"));
+      const addWrap=h("div",null);
+      unsharedUsers.forEach(u=>{
+        const row=h("div",{className:"flex between items-c",style:{padding:"8px 12px",marginBottom:6,borderRadius:8,border:"1px solid rgba(180,120,60,.12)",background:"rgba(30,15,5,.15)"}},
+          h("div",{className:"flex gap12 items-c"},
+            h("div",{style:{width:32,height:32,borderRadius:"50%",background:"rgba(120,53,15,.3)",display:"flex",alignItems:"center",justifyContent:"center",color:"#d97706",fontWeight:700,fontSize:12}},u.id),
+            h("div",null,
+              h("div",{className:"c2 fw6 fs13"},u.name),
+              h("div",{className:"fs11 c5"},u.role==="admin"?"Admin":u.role==="manager"?"Manager":"Executive")
+            )
+          ),
+          h("div",{className:"flex gap8 items-c"},
+            h("select",{id:"share-perm-"+u.id,className:"inp",style:{width:90,fontSize:11,padding:"4px 6px"}},
+              h("option",{value:"view"},"View"),
+              h("option",{value:"edit"},"Edit")
+            ),
+            h("button",{className:"btn btn-s",style:{fontSize:11,padding:"4px 12px"},onClick:async()=>{
+              const perm=document.getElementById("share-perm-"+u.id)?.value||"view";
+              await busy(async()=>{
+                const ok=await doShare(m.formulaId,u.id,perm);
+                if(ok){
+                  m.shares.push({shared_with:u.id,shared_by:ST.user.id,permission:perm,user_name:u.name});
+                  await dbLoadSharedWithMe();
+                  flash("Shared with "+u.name);render();
+                }
+              });
+            }},"Share")
+          )
+        );
+        addWrap.appendChild(row);
+      });
+      modal.appendChild(addWrap);
+    }else if(currentShares.length===0){
+      modal.appendChild(h("div",{className:"c5 fs13 text-c",style:{padding:"20px 0"}},"No other users to share with"));
+    }
+  }
+
+  modal.appendChild(h("div",{className:"flex",style:{justifyContent:"flex-end",marginTop:20}},
+    h("button",{className:"btn btn-s",onClick:()=>{ST.shareModal=null;render();}},"Close")
+  ));
+
+  return h("div",{className:"overlay"},modal);
 }
 
 function getIngPrice(c){const i=ST.ings.find(x=>x.itemCode.toLowerCase()===c.toLowerCase());return i?i.pricePerKg:0;}
 function getIngName(c){const i=ST.ings.find(x=>x.itemCode.toLowerCase()===c.toLowerCase());return i?i.itemName||"":""}
 function renderFrmEditor(){
   const f=ST.frmEdit;const wrap=h("div",null);
+  const viewOnly=!!f._viewOnly;
+  // View-only banner
+  if(viewOnly){
+    wrap.appendChild(h("div",{style:{padding:"10px 20px",marginBottom:16,borderRadius:10,background:"rgba(167,139,250,.12)",border:"1px solid rgba(167,139,250,.25)",display:"flex",alignItems:"center",gap:10}},
+      h("span",{style:{fontSize:16}},"👁️"),
+      h("span",{className:"fs13",style:{color:"#c4b5fd"}},"View Only — This formula was shared with you for viewing. You cannot make changes."),
+      h("span",{className:"fs11",style:{color:"#a78bfa",marginLeft:"auto"}},"Shared by "+getUserName(f.createdBy))
+    ));
+  }
   // Header
   wrap.appendChild(h("div",{className:"flex between items-c mb24"},
     h("div",{className:"flex gap12 items-c"},
       h("button",{className:"abtn c4",onClick:()=>{ST.frmView="list";render();}},"← Back"),
-      h("div",null,h("div",{className:"fs22 fw7 c1"},(f.productCode?"Edit":"New")+" Formula"+(f.version?" — V"+f.version:"")),h("div",{className:"c4 fs13"},ST.user.name+(f.updatedAt?" · Last updated: "+f.updatedAt:"")))
+      h("div",null,h("div",{className:"fs22 fw7 c1"},(viewOnly?"View":f.productCode?"Edit":"New")+" Formula"+(f.version?" — V"+f.version:"")),h("div",{className:"c4 fs13"},ST.user.name+(f.updatedAt?" · Last updated: "+f.updatedAt:"")))
     ),
-    h("button",{className:"btn btn-p"+(ST.saving?" saving":""),disabled:ST.saving,onClick:saveFrmEdit},ST.saving?"Saving...":"💾 Save")
+    viewOnly?null:h("button",{className:"btn btn-p"+(ST.saving?" saving":""),disabled:ST.saving,onClick:saveFrmEdit},ST.saving?"Saving...":"💾 Save")
   ));
   // Product info
   const infoGrid=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 0.5fr",gap:16}});
-  infoGrid.appendChild(h("div",null,h("div",{className:"lbl"},"Product Code *"),h("input",{id:"fe-pc",className:"inp",value:f.productCode,onInput:e=>{f.productCode=e.target.value;}})));
-  infoGrid.appendChild(h("div",null,h("div",{className:"lbl"},"Product Name *"),h("input",{id:"fe-pn",className:"inp",value:f.productName,onInput:e=>{f.productName=e.target.value;}})));
-  infoGrid.appendChild(h("div",null,h("div",{className:"lbl"},"Batch Size (kg) *"),h("input",{id:"fe-bs",className:"inp",type:"number",step:"0.1",value:f.batchSize,onInput:e=>{f.batchSize=+e.target.value||0;recalcFrm();render();}})));
+  infoGrid.appendChild(h("div",null,h("div",{className:"lbl"},"Product Code *"),h("input",{id:"fe-pc",className:"inp",value:f.productCode,disabled:viewOnly,onInput:e=>{f.productCode=e.target.value;}})));
+  infoGrid.appendChild(h("div",null,h("div",{className:"lbl"},"Product Name *"),h("input",{id:"fe-pn",className:"inp",value:f.productName,disabled:viewOnly,onInput:e=>{f.productName=e.target.value;}})));
+  infoGrid.appendChild(h("div",null,h("div",{className:"lbl"},"Batch Size (kg) *"),h("input",{id:"fe-bs",className:"inp",type:"number",step:"0.1",value:f.batchSize,disabled:viewOnly,onInput:e=>{f.batchSize=+e.target.value||0;recalcFrm();render();}})));
   infoGrid.appendChild(h("div",null,h("div",{className:"lbl"},"Version"),h("input",{className:"inp",value:"V"+(f.version||1),disabled:true,style:{opacity:.6,textAlign:"center"}})));
   wrap.appendChild(h("div",{className:"card mb16"},infoGrid));
   // Version note + active toggle + approval status
@@ -1357,14 +1624,14 @@ function renderFrmEditor(){
     f.approvalStatus==="pending"?h("span",{style:{background:"rgba(251,191,36,.15)",color:"#fbbf24",padding:"4px 12px",borderRadius:8,fontSize:12,fontWeight:600}},"⏳ Pending Review"):
     h("span",{style:{background:"rgba(180,120,60,.1)",color:"rgba(180,120,60,.5)",padding:"4px 12px",borderRadius:8,fontSize:12,fontWeight:600}},"Draft");
   wrap.appendChild(h("div",{className:"card mb24"},h("div",{className:"flex gap16 items-c wrap"},
-    h("div",{style:{flex:1}},h("div",{className:"lbl"},"Version Note ",h("span",{className:"c5",style:{textTransform:"none"}},"(optional)")),h("input",{id:"fe-vn",className:"inp",value:f.versionNote||"",placeholder:"e.g. Reduced salt, Trial with new paprika...",onInput:e=>{f.versionNote=e.target.value;}})),
-    h("div",null,h("div",{className:"lbl"},"Status"),h("button",{className:"btn "+(f.active?"btn-p":"btn-s"),style:{fontSize:12,padding:"6px 16px"},onClick:()=>{f.active=!f.active;render();}},f.active?"✅ Active":"Set Active")),
+    h("div",{style:{flex:1}},h("div",{className:"lbl"},"Version Note ",h("span",{className:"c5",style:{textTransform:"none"}},"(optional)")),h("input",{id:"fe-vn",className:"inp",value:f.versionNote||"",disabled:viewOnly,placeholder:"e.g. Reduced salt, Trial with new paprika...",onInput:e=>{f.versionNote=e.target.value;}})),
+    h("div",null,h("div",{className:"lbl"},"Status"),viewOnly?h("span",{className:"btn "+(f.active?"btn-p":"btn-s"),style:{fontSize:12,padding:"6px 16px",cursor:"default"}},f.active?"✅ Active":"Inactive"):h("button",{className:"btn "+(f.active?"btn-p":"btn-s"),style:{fontSize:12,padding:"6px 16px"},onClick:()=>{f.active=!f.active;render();}},f.active?"✅ Active":"Set Active")),
     h("div",null,h("div",{className:"lbl"},"Approval"),approvalBadge)
   )));
   // Mode toggle
   wrap.appendChild(h("div",{className:"flex between items-c mb16"},
     h("div",{className:"fs13 fw6 c3",style:{textTransform:"uppercase",letterSpacing:".04em"}},"Ingredients ("+f.ingredients.filter(r=>r.itemCode).length+"/20)"),
-    h("div",{className:"flex gap8 items-c"},h("span",{className:"fs12 c4"},"Input:"),
+    viewOnly?null:h("div",{className:"flex gap8 items-c"},h("span",{className:"fs12 c4"},"Input:"),
       h("button",{className:"btn "+(f.inputMode==="kg"?"btn-p":"btn-s"),style:{fontSize:12,padding:"4px 14px"},onClick:()=>{f.inputMode="kg";render();}},"KG"),
       h("button",{className:"btn "+(f.inputMode==="pct"?"btn-p":"btn-s"),style:{fontSize:12,padding:"4px 14px"},onClick:()=>{f.inputMode="pct";render();}},"%")
     )
@@ -1389,7 +1656,7 @@ function renderFrmEditor(){
     }
     // Searchable dropdown - all DOM, no render()
     const cellWrap=h("div",{style:{position:"relative",minWidth:280}});
-    const inp=h("input",{className:"inp mono fs12",value:row.itemCode||"",placeholder:"Search code or name..."});
+    const inp=h("input",{className:"inp mono fs12",value:row.itemCode||"",placeholder:"Search code or name...",disabled:viewOnly});
     cellWrap.appendChild(inp);
     let _origCode=row.itemCode||"";
 
@@ -1446,15 +1713,15 @@ function renderFrmEditor(){
       h("td",{className:"c5 fs12"},idx+1),
       h("td",null,cellWrap),
       h("td",{className:"c5 fs12",style:{maxWidth:100,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},name||"—"),
-      h("td",null,h("input",{className:"inp mono fs12 text-r",type:"number",step:"0.01",value:row.qty||"",disabled:f.inputMode==="pct","data-role":"qty","data-idx":""+idx,
+      h("td",null,h("input",{className:"inp mono fs12 text-r",type:"number",step:"0.01",value:row.qty||"",disabled:viewOnly||f.inputMode==="pct","data-role":"qty","data-idx":""+idx,
         onInput:e=>{row.qty=+e.target.value||0;recalcAllPct();updateAllPctUI();updateTotals();}})),
-      h("td",null,h("input",{className:"inp mono fs12 text-r",type:"number",step:"0.01",value:row.pct?(+row.pct).toFixed(2):"",disabled:f.inputMode==="kg","data-role":"pct","data-idx":""+idx,
+      h("td",null,h("input",{className:"inp mono fs12 text-r",type:"number",step:"0.01",value:row.pct?(+row.pct).toFixed(2):"",disabled:viewOnly||f.inputMode==="kg","data-role":"pct","data-idx":""+idx,
         onInput:e=>{row.pct=+e.target.value||0;if(f.inputMode==="pct"&&f.batchSize>0)row.qty=(row.pct/100)*f.batchSize;
           const qtyEl=document.querySelector('[data-role="qty"][data-idx="'+idx+'"]');if(qtyEl)qtyEl.value=row.qty||"";
           updateAllLcUI();updateTotals();}})),
       h("td",{className:"text-r c5 fs12 mono"},price>0?price.toFixed(2):"—"),
       h("td",{className:"text-r c2 fs12 mono fw6","data-role":"lc","data-idx":""+idx},lcPerKg>0?lcPerKg.toFixed(2):"—"),
-      h("td",null,h("button",{className:"abtn cr",disabled:f.ingredients.length<=1,onClick:()=>{f.ingredients.splice(idx,1);render();}},"✕"))
+      viewOnly?h("td"):h("td",null,h("button",{className:"abtn cr",disabled:f.ingredients.length<=1,onClick:()=>{f.ingredients.splice(idx,1);render();}},"✕"))
     );
     tbody.appendChild(tr);
   });
@@ -1472,7 +1739,7 @@ function renderFrmEditor(){
   table.appendChild(tbody);table.appendChild(tfoot);tbl.appendChild(table);wrap.appendChild(tbl);
   // Bottom bar
   wrap.appendChild(h("div",{className:"flex between items-c wrap gap12 mb24"},
-    h("button",{className:"btn btn-s fs12",disabled:f.ingredients.length>=20,onClick:()=>{f.ingredients.push({itemCode:"",qty:0,pct:0});render();}},"➕ Add Ingredient"),
+    viewOnly?h("span"):h("button",{className:"btn btn-s fs12",disabled:f.ingredients.length>=20,onClick:()=>{f.ingredients.push({itemCode:"",qty:0,pct:0});render();}},"➕ Add Ingredient"),
     h("div",{className:"flex gap16 fs13"},
       Math.abs(tPct-100)>=.1?h("span",{id:"sum-warn",className:"co fs12"},"⚠ "+tPct.toFixed(1)+"% ≠ 100%"):h("span",{id:"sum-warn",className:"co fs12"}),
       h("span",{className:"c4"},"Cost/KG: ",h("b",{id:"sum-cpk",className:"c2 mono"},costPerKg>0?costPerKg.toFixed(2):"—")),
@@ -1483,7 +1750,7 @@ function renderFrmEditor(){
   wrap.appendChild(h("div",{className:"card mb24"},
     h("div",{className:"lbl mb8"},"📝 Mixing / Further Instructions ",h("span",{className:"c5",style:{textTransform:"none"}},"(optional)")),
     h("textarea",{id:"fe-notes",className:"inp",style:{minHeight:120,resize:"vertical",lineHeight:"1.6",fontFamily:"inherit",fontSize:13},
-      value:f.notes||"",placeholder:"e.g. Mix dry ingredients first for 5 min at low speed...\nAdd liquid slowly while mixing at medium speed...\nBlend for 10 min until uniform color achieved...",
+      value:f.notes||"",disabled:viewOnly,placeholder:"e.g. Mix dry ingredients first for 5 min at low speed...\nAdd liquid slowly while mixing at medium speed...\nBlend for 10 min until uniform color achieved...",
       onInput:e=>{f.notes=e.target.value;}})
   ));
   // Sensory Feedback section
@@ -1496,10 +1763,10 @@ function renderFrmEditor(){
   if(sensory.imageUrl){
     const imgPreview=h("div",{style:{display:"flex",gap:12,alignItems:"flex-start",marginBottom:8}});
     imgPreview.appendChild(h("img",{src:sensory.imageUrl,style:{maxWidth:200,maxHeight:200,objectFit:"contain",borderRadius:10,border:"1px solid rgba(180,120,60,.2)"}}));
-    imgPreview.appendChild(h("button",{className:"abtn cr fs12",onClick:()=>{sensory.imageUrl="";render();}},"✕ Remove"));
+    if(!viewOnly)imgPreview.appendChild(h("button",{className:"abtn cr fs12",onClick:()=>{sensory.imageUrl="";render();}},"✕ Remove"));
     imgWrap.appendChild(imgPreview);
   }
-  imgWrap.appendChild(h("input",{type:"file",accept:"image/*",className:"fs12 c4",style:{maxWidth:260},
+  if(!viewOnly)imgWrap.appendChild(h("input",{type:"file",accept:"image/*",className:"fs12 c4",style:{maxWidth:260},
     onChange:async e=>{
       const file=e.target.files?.[0];if(!file)return;
       if(file.size>5*1024*1024){flash("Image must be under 5MB","error");return;}
@@ -1558,7 +1825,7 @@ function renderFrmEditor(){
   sFields.forEach(sf=>{
     sGrid.appendChild(h("div",null,
       h("div",{className:"fs12 c4 mb4",style:{fontWeight:600}},sf.icon+" "+sf.label),
-      h("input",{id:"fe-s-"+sf.key,className:"inp fs12",value:sensory[sf.key]||"",placeholder:sf.placeholder,
+      h("input",{id:"fe-s-"+sf.key,className:"inp fs12",value:sensory[sf.key]||"",disabled:viewOnly,placeholder:sf.placeholder,
         onInput:e=>{sensory[sf.key]=e.target.value;f.sensory=sensory;}})
     ));
   });
@@ -1573,7 +1840,7 @@ function renderFrmEditor(){
     sCard.appendChild(h("div",{style:{marginBottom:12}},
       h("div",{className:"fs12 c4 mb4",style:{fontWeight:600}},sf.icon+" "+sf.label),
       h("textarea",{id:"fe-s-"+sf.key,className:"inp fs12",style:{minHeight:60,resize:"vertical",lineHeight:"1.5",fontFamily:"inherit"},
-        value:sensory[sf.key]||"",placeholder:sf.placeholder,
+        value:sensory[sf.key]||"",disabled:viewOnly,placeholder:sf.placeholder,
         onInput:e=>{sensory[sf.key]=e.target.value;f.sensory=sensory;}})
     ));
   });
@@ -1581,8 +1848,8 @@ function renderFrmEditor(){
 
   wrap.appendChild(h("div",{id:"fe-err",className:"err mb16"}));
   wrap.appendChild(h("div",{className:"flex gap12",style:{justifyContent:"flex-end"}},
-    h("button",{className:"btn btn-s",onClick:()=>{ST.frmView="list";render();}},"Cancel"),
-    h("button",{className:"btn btn-p"+(ST.saving?" saving":""),disabled:ST.saving,onClick:saveFrmEdit},ST.saving?"Saving...":"💾 Save Formula")
+    h("button",{className:"btn btn-s",onClick:()=>{ST.frmView="list";render();}},viewOnly?"← Back":"Cancel"),
+    viewOnly?null:h("button",{className:"btn btn-p"+(ST.saving?" saving":""),disabled:ST.saving,onClick:saveFrmEdit},ST.saving?"Saving...":"💾 Save Formula")
   ));
   return wrap;
 }
