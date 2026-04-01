@@ -231,7 +231,7 @@ async function dbLoadSharedWithMe(){
 }
 
 async function openShareModal(f){
-  ST.shareModal={formulaId:f.id,formulaCode:f.productCode+" V"+(f.version||1),shares:[],loading:true};
+  ST.shareModal={formulaId:f.id,formulaCode:f.productCode+" V"+(f.version||1),ownerSlot:f.createdBy,shares:[],loading:true};
   render();
   try{
     const{data}=await sb.rpc("get_formula_shares",{p_formula_id:f.id});
@@ -384,7 +384,7 @@ document.addEventListener("keydown",()=>lastAct=Date.now());
 setInterval(async()=>{
   if(Date.now()-lastAct>30*60*1000){
     authLogout();
-    ST.s1=false;ST.user=null;ST.adm=false;ST.tab="ing";render();
+    ST.s1=false;ST.user=null;ST.adm=false;ST.tab="ing";ST.shareModal=null;ST.sharedWithMe={};ST.sharedByMe={};render();
   }else if(ST.userToken||ST.s1Token){
     await authRefresh();
   }
@@ -475,7 +475,7 @@ function renderHeader(){
       h("span",{style:{fontSize:10,padding:"3px 8px",borderRadius:8,background:!ST.online?"rgba(239,68,68,.15)":ST.dbOk?"rgba(52,211,153,.15)":"rgba(239,68,68,.15)",color:!ST.online?"#f87171":ST.dbOk?"#34d399":"#f87171",border:"1px solid "+(!ST.online?"rgba(239,68,68,.2)":ST.dbOk?"rgba(52,211,153,.2)":"rgba(239,68,68,.2)")}},!ST.online?"● Offline":ST.dbOk?"● Connected":"● DB Offline"),
       ST.user?h("span",{className:"usr-badge"},ST.user.name+(ST.user.role==="admin"?" ⭐":ST.user.role==="manager"?" 👔":"")):null,
       ST.user?.role==="admin"?h("button",{className:"btn btn-s",style:{padding:"6px 12px",fontSize:12},onClick:()=>{ST.adm=!ST.adm;render();}},"⚙️ Admin"):null,
-      (ST.s1||ST.user)?h("button",{className:"btn btn-s",style:{padding:"6px 12px",fontSize:12},onClick:()=>{authLogout();ST.s1=false;ST.user=null;ST.adm=false;ST.s1Token=null;ST.userToken=null;render();}},"🔒 Lock"):null
+      (ST.s1||ST.user)?h("button",{className:"btn btn-s",style:{padding:"6px 12px",fontSize:12},onClick:()=>{authLogout();ST.s1=false;ST.user=null;ST.adm=false;ST.s1Token=null;ST.userToken=null;ST.shareModal=null;ST.sharedWithMe={};ST.sharedByMe={};render();}},"🔒 Lock"):null
     )
   );
 }
@@ -1487,7 +1487,7 @@ function renderFormulas(){
 /* ─── Share Modal ─── */
 function renderShareModal(){
   const m=ST.shareModal;if(!m)return h("div",null);
-  const otherUsers=ST.users.filter(u=>u.id!==ST.user.id);
+  const otherUsers=ST.users.filter(u=>u.id!==ST.user.id&&u.id!==m.ownerSlot);
   const currentShares=m.shares||[];
   const sharedSlots=new Set(currentShares.map(s=>s.shared_with));
 
