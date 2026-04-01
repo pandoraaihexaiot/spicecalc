@@ -1329,8 +1329,10 @@ function renderFormulas(){
               const nv=inp.value.trim();
               if(nv&&nv!==oldName){
                 versions.forEach(v=>{v.productName=nv;});
-                for(const v of versions){await sb.from("formulas").update({product_name:nv,updated_at:new Date().toISOString()}).eq("id",v.id);}
-                flash("Name updated");
+                let failed=false;
+                for(const v of versions){const{error}=await sb.from("formulas").update({product_name:nv,updated_at:new Date().toISOString()}).eq("id",v.id);if(error){failed=true;break;}}
+                if(failed){versions.forEach(v=>{v.productName=oldName;});flash("Name update failed","error");}
+                else flash("Name updated");
               }
               render();
             });
@@ -1386,10 +1388,10 @@ function renderFormulas(){
         ),
         !ST.frmSelMode?h("div",{className:"flex gap4",onClick:e=>e.stopPropagation()},
           /* Approval workflow buttons */
-          f.approvalStatus==="draft"||!f.approvalStatus?h("button",{className:"abtn",title:"Submit for Review",style:{color:"#fbbf24",fontSize:12},onClick:async()=>{f.approvalStatus="pending";await sb.from("formulas").update({approval_status:"pending",updated_at:new Date().toISOString()}).eq("id",f.id);logAudit("submit_review","formula",f.id,{productCode:f.productCode,version:f.version});flash("Submitted for review");render();}},"📤"):null,
-          isManager()&&f.approvalStatus==="pending"?h("button",{className:"abtn",title:"Approve",style:{color:"#34d399",fontSize:12},onClick:async()=>{f.approvalStatus="approved";await sb.from("formulas").update({approval_status:"approved",updated_at:new Date().toISOString()}).eq("id",f.id);logAudit("approve","formula",f.id,{productCode:f.productCode,version:f.version});flash("Formula approved");render();}},"✅"):null,
-          isManager()&&f.approvalStatus==="pending"?h("button",{className:"abtn",title:"Reject",style:{color:"#f87171",fontSize:12},onClick:async()=>{const reason=prompt("Rejection reason (optional):");f.approvalStatus="rejected";await sb.from("formulas").update({approval_status:"rejected",updated_at:new Date().toISOString()}).eq("id",f.id);logAudit("reject","formula",f.id,{productCode:f.productCode,version:f.version,reason});flash("Formula rejected");render();}},"❌"):null,
-          !f.active?h("button",{className:"abtn",title:"Set Active",style:{color:"#34d399",fontSize:14},onClick:async()=>{for(const v of versions){v.active=false;await dbSetActive(v.id,false);}f.active=true;await dbSetActive(f.id,true);flash("V"+(f.version||1)+" set as Active");render();}},"🔛"):null,
+          f.approvalStatus==="draft"||!f.approvalStatus?h("button",{className:"abtn",title:"Submit for Review",style:{color:"#fbbf24",fontSize:12},onClick:async()=>{const prev=f.approvalStatus;f.approvalStatus="pending";render();const{error}=await sb.from("formulas").update({approval_status:"pending",updated_at:new Date().toISOString()}).eq("id",f.id);if(error){f.approvalStatus=prev;flash("Failed to submit","error");}else{logAudit("submit_review","formula",f.id,{productCode:f.productCode,version:f.version});flash("Submitted for review");}render();}},"📤"):null,
+          isManager()&&f.approvalStatus==="pending"?h("button",{className:"abtn",title:"Approve",style:{color:"#34d399",fontSize:12},onClick:async()=>{const prev=f.approvalStatus;f.approvalStatus="approved";render();const{error}=await sb.from("formulas").update({approval_status:"approved",updated_at:new Date().toISOString()}).eq("id",f.id);if(error){f.approvalStatus=prev;flash("Failed to approve","error");}else{logAudit("approve","formula",f.id,{productCode:f.productCode,version:f.version});flash("Formula approved");}render();}},"✅"):null,
+          isManager()&&f.approvalStatus==="pending"?h("button",{className:"abtn",title:"Reject",style:{color:"#f87171",fontSize:12},onClick:async()=>{const reason=prompt("Rejection reason (optional):");const prev=f.approvalStatus;f.approvalStatus="rejected";render();const{error}=await sb.from("formulas").update({approval_status:"rejected",updated_at:new Date().toISOString()}).eq("id",f.id);if(error){f.approvalStatus=prev;flash("Failed to reject","error");}else{logAudit("reject","formula",f.id,{productCode:f.productCode,version:f.version,reason});flash("Formula rejected");}render();}},"❌"):null,
+          !f.active?h("button",{className:"abtn",title:"Set Active",style:{color:"#34d399",fontSize:14},onClick:async()=>{await busy(async()=>{for(const v of versions){v.active=false;await dbSetActive(v.id,false);}f.active=true;await dbSetActive(f.id,true);flash("V"+(f.version||1)+" set as Active");});render();}},"🔛"):null,
           /* Share button — visible to owners and managers */
           canShare(f)?h("button",{className:"abtn",title:"Share",style:{color:"#a78bfa",fontSize:13},onClick:()=>{openShareModal(f);}},"🔗"):null,
           h("button",{className:"abtn",title:"Edit",style:{color:"#60a5fa"},onClick:()=>{ST.frmEdit={...f,inputMode:f.inputMode||"kg",sensory:f.sensory?{...f.sensory}:{},ingredients:f.ingredients.map(r=>({...r}))};ST.frmView="edit";render();}},"✏️"),
@@ -1924,6 +1926,9 @@ async function saveFrmEdit(){
   await busy(async()=>{
     const ok=await dbSaveFrm(f);
     if(!ok)return;
+    /* For new formulas, the RPC uses the session user as created_by (not f.createdBy).
+       Sync local state so the formula appears under the correct user. */
+    if(f._isNew)f.createdBy=ST.user.id;
     if(f.active){ST.frms.filter(x=>x.productCode.toLowerCase()===f.productCode.toLowerCase()&&x.id!==f.id&&x.createdBy===ST.user.id).forEach(x=>x.active=false);}
     const ex=ST.frms.findIndex(x=>x.id===f.id);if(ex>=0)ST.frms[ex]=f;else ST.frms.push(f);
     flash("Saved — V"+(f.version||1));ST.frmView="list";
@@ -2140,8 +2145,9 @@ function renderDashboard(){
   });
   wrap.appendChild(stats);
 
-  // Duplicate product code detection
-  const codeMap={};ST.frms.forEach(f=>{const k=f.productCode.toLowerCase();if(!codeMap[k])codeMap[k]=new Set();codeMap[k].add(f.createdBy);});
+  // Duplicate product code detection (exclude shared formulas — they're intentional, not duplicates)
+  const ownFrms=isManager()?ST.frms:ST.frms.filter(f=>f.createdBy===ST.user?.id);
+  const codeMap={};ownFrms.forEach(f=>{const k=f.productCode.toLowerCase();if(!codeMap[k])codeMap[k]=new Set();codeMap[k].add(f.createdBy);});
   const dupes=Object.entries(codeMap).filter(([k,s])=>s.size>1);
   if(dupes.length>0){
     const dupeCard=h("div",{className:"card mb24",style:{borderColor:"rgba(251,191,36,.3)"}});
