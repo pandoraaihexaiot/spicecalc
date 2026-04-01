@@ -1452,7 +1452,7 @@ function renderFormulas(){
             const vRow=h("div",{style:{padding:"10px 14px",marginTop:8,borderRadius:8,border:"1px solid rgba(167,139,250,.2)",background:"rgba(167,139,250,.04)",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"},
               onClick:()=>{
                 if(canEdit){
-                  ST.frmEdit={...f,inputMode:f.inputMode||"kg",sensory:f.sensory?{...f.sensory}:{},ingredients:f.ingredients.map(r=>({...r}))};ST.frmView="edit";render();
+                  ST.frmEdit={...f,_sharedEdit:true,inputMode:f.inputMode||"kg",sensory:f.sensory?{...f.sensory}:{},ingredients:f.ingredients.map(r=>({...r}))};ST.frmView="edit";render();
                 }else{
                   /* View-only: open editor but mark as read-only */
                   ST.frmEdit={...f,_viewOnly:true,inputMode:f.inputMode||"kg",sensory:f.sensory?{...f.sensory}:{},ingredients:f.ingredients.map(r=>({...r}))};ST.frmView="edit";render();
@@ -1468,7 +1468,7 @@ function renderFormulas(){
                 h("span",{className:"fs12 c5"},f.updatedAt||"")
               ),
               h("div",{className:"flex gap4",onClick:e=>e.stopPropagation()},
-                canEdit?h("button",{className:"abtn",title:"Edit (shared)",style:{color:"#60a5fa"},onClick:()=>{ST.frmEdit={...f,inputMode:f.inputMode||"kg",sensory:f.sensory?{...f.sensory}:{},ingredients:f.ingredients.map(r=>({...r}))};ST.frmView="edit";render();}},"✏️"):
+                canEdit?h("button",{className:"abtn",title:"Edit (shared)",style:{color:"#60a5fa"},onClick:()=>{ST.frmEdit={...f,_sharedEdit:true,inputMode:f.inputMode||"kg",sensory:f.sensory?{...f.sensory}:{},ingredients:f.ingredients.map(r=>({...r}))};ST.frmView="edit";render();}},"✏️"):
                 h("button",{className:"abtn",title:"View (read-only)",style:{color:"#a78bfa"},onClick:()=>{ST.frmEdit={...f,_viewOnly:true,inputMode:f.inputMode||"kg",sensory:f.sensory?{...f.sensory}:{},ingredients:f.ingredients.map(r=>({...r}))};ST.frmView="edit";render();}},"👁️")
               )
             );
@@ -1595,12 +1595,21 @@ function getIngName(c){const i=ST.ings.find(x=>x.itemCode.toLowerCase()===c.toLo
 function renderFrmEditor(){
   const f=ST.frmEdit;const wrap=h("div",null);
   const viewOnly=!!f._viewOnly;
+  const sharedEdit=!!f._sharedEdit;
   // View-only banner
   if(viewOnly){
     wrap.appendChild(h("div",{style:{padding:"10px 20px",marginBottom:16,borderRadius:10,background:"rgba(167,139,250,.12)",border:"1px solid rgba(167,139,250,.25)",display:"flex",alignItems:"center",gap:10}},
       h("span",{style:{fontSize:16}},"👁️"),
       h("span",{className:"fs13",style:{color:"#c4b5fd"}},"View Only — This formula was shared with you for viewing. You cannot make changes."),
       h("span",{className:"fs11",style:{color:"#a78bfa",marginLeft:"auto"}},"Shared by "+getUserName(f.createdBy))
+    ));
+  }
+  // Shared-edit banner
+  if(sharedEdit){
+    wrap.appendChild(h("div",{style:{padding:"10px 20px",marginBottom:16,borderRadius:10,background:"rgba(96,165,250,.1)",border:"1px solid rgba(96,165,250,.25)",display:"flex",alignItems:"center",gap:10}},
+      h("span",{style:{fontSize:16}},"✏️"),
+      h("span",{className:"fs13",style:{color:"#93c5fd"}},"Shared Edit — You can modify this formula's content. Active status is managed by the owner."),
+      h("span",{className:"fs11",style:{color:"#60a5fa",marginLeft:"auto"}},"Owned by "+getUserName(f.createdBy))
     ));
   }
   // Header
@@ -1625,7 +1634,7 @@ function renderFrmEditor(){
     h("span",{style:{background:"rgba(180,120,60,.1)",color:"rgba(180,120,60,.5)",padding:"4px 12px",borderRadius:8,fontSize:12,fontWeight:600}},"Draft");
   wrap.appendChild(h("div",{className:"card mb24"},h("div",{className:"flex gap16 items-c wrap"},
     h("div",{style:{flex:1}},h("div",{className:"lbl"},"Version Note ",h("span",{className:"c5",style:{textTransform:"none"}},"(optional)")),h("input",{id:"fe-vn",className:"inp",value:f.versionNote||"",disabled:viewOnly,placeholder:"e.g. Reduced salt, Trial with new paprika...",onInput:e=>{f.versionNote=e.target.value;}})),
-    h("div",null,h("div",{className:"lbl"},"Status"),viewOnly?h("span",{className:"btn "+(f.active?"btn-p":"btn-s"),style:{fontSize:12,padding:"6px 16px",cursor:"default"}},f.active?"✅ Active":"Inactive"):h("button",{className:"btn "+(f.active?"btn-p":"btn-s"),style:{fontSize:12,padding:"6px 16px"},onClick:()=>{f.active=!f.active;render();}},f.active?"✅ Active":"Set Active")),
+    h("div",null,h("div",{className:"lbl"},"Status"),(viewOnly||sharedEdit)?h("span",{className:"btn "+(f.active?"btn-p":"btn-s"),style:{fontSize:12,padding:"6px 16px",cursor:"default"}},f.active?"✅ Active":"Inactive"):h("button",{className:"btn "+(f.active?"btn-p":"btn-s"),style:{fontSize:12,padding:"6px 16px"},onClick:()=>{f.active=!f.active;render();}},f.active?"✅ Active":"Set Active")),
     h("div",null,h("div",{className:"lbl"},"Approval"),approvalBadge)
   )));
   // Mode toggle
@@ -2113,9 +2122,11 @@ function renderDashboard(){
   // Stats cards
   const stats=h("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:16,marginBottom:24}});
   const activeF=ST.frms.filter(f=>f.active);
+  const ownFrmCount=ST.user?ST.frms.filter(f=>f.createdBy===ST.user.id).length:ST.frms.length;
+  const sharedFrmCount=ST.user?Object.keys(ST.sharedWithMe).length:0;
   const statData=[
     {label:"Ingredients",val:ST.ings.length,icon:"📦",color:"#fbbf24"},
-    {label:"Formulas",val:ST.frms.length,icon:"🧪",color:"#34d399"},
+    {label:"Formulas",val:ownFrmCount+(sharedFrmCount?" + "+sharedFrmCount+" shared":""),icon:"🧪",color:"#34d399"},
     {label:"Active Formulas",val:activeF.length,icon:"✅",color:"#6ee7b7"},
     {label:"Costings",val:ST.csts.length,icon:"🧮",color:"#60a5fa"},
     {label:"Users",val:ST.users.length,icon:"👥",color:"#a78bfa"},
