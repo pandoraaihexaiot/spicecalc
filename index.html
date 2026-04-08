@@ -333,7 +333,9 @@ async function dbDeleteFrm(id){
   logAudit("delete","formula",id,{productCode:frm?.productCode,version:frm?.version});
 }
 async function dbSetActive(id,active){
-  await sb.from("formulas").update({active}).eq("id",id);
+  const{data,error}=await sb.rpc("set_formula_active",{p_formula_id:id,p_active:active});
+  if(error)console.error("Set active error:",error);
+  return data&&data.ok;
 }
 
 async function dbSaveCost(cost){
@@ -1329,11 +1331,9 @@ function renderFormulas(){
             inp.addEventListener("blur",async()=>{
               const nv=inp.value.trim();
               if(nv&&nv!==oldName){
-                versions.forEach(v=>{v.productName=nv;});
-                let failed=false;
-                for(const v of versions){const{error}=await sb.from("formulas").update({product_name:nv,updated_at:new Date().toISOString()}).eq("id",v.id);if(error){failed=true;break;}}
-                if(failed){versions.forEach(v=>{v.productName=oldName;});flash("Name update failed","error");}
-                else flash("Name updated");
+                const{data}=await sb.rpc("update_formula_name",{p_product_code:first.productCode,p_new_name:nv,p_created_by:first.createdBy});
+                if(data&&data.ok){versions.forEach(v=>{v.productName=nv;});flash("Name updated");}
+                else{flash(data?.error||"Name update failed","error");}
               }
               render();
             });
@@ -1389,10 +1389,10 @@ function renderFormulas(){
         ),
         !ST.frmSelMode?h("div",{className:"flex gap4",onClick:e=>e.stopPropagation()},
           /* Approval workflow buttons */
-          f.approvalStatus==="draft"||!f.approvalStatus?h("button",{className:"abtn",title:"Submit for Review",style:{color:"#fbbf24",fontSize:12},onClick:async()=>{const prev=f.approvalStatus;f.approvalStatus="pending";render();const{error}=await sb.from("formulas").update({approval_status:"pending",updated_at:new Date().toISOString()}).eq("id",f.id);if(error){f.approvalStatus=prev;flash("Failed to submit","error");}else{logAudit("submit_review","formula",f.id,{productCode:f.productCode,version:f.version});flash("Submitted for review");}render();}},"📤"):null,
-          isManager()&&f.approvalStatus==="pending"?h("button",{className:"abtn",title:"Approve",style:{color:"#34d399",fontSize:12},onClick:async()=>{const prev=f.approvalStatus;f.approvalStatus="approved";render();const{error}=await sb.from("formulas").update({approval_status:"approved",updated_at:new Date().toISOString()}).eq("id",f.id);if(error){f.approvalStatus=prev;flash("Failed to approve","error");}else{logAudit("approve","formula",f.id,{productCode:f.productCode,version:f.version});flash("Formula approved");}render();}},"✅"):null,
-          isManager()&&f.approvalStatus==="pending"?h("button",{className:"abtn",title:"Reject",style:{color:"#f87171",fontSize:12},onClick:async()=>{const reason=prompt("Rejection reason (optional):");const prev=f.approvalStatus;f.approvalStatus="rejected";render();const{error}=await sb.from("formulas").update({approval_status:"rejected",updated_at:new Date().toISOString()}).eq("id",f.id);if(error){f.approvalStatus=prev;flash("Failed to reject","error");}else{logAudit("reject","formula",f.id,{productCode:f.productCode,version:f.version,reason});flash("Formula rejected");}render();}},"❌"):null,
-          !f.active?h("button",{className:"abtn",title:"Set Active",style:{color:"#34d399",fontSize:14},onClick:async()=>{await busy(async()=>{for(const v of versions){v.active=false;await dbSetActive(v.id,false);}f.active=true;await dbSetActive(f.id,true);flash("V"+(f.version||1)+" set as Active");});render();}},"🔛"):null,
+          f.approvalStatus==="draft"||!f.approvalStatus?h("button",{className:"abtn",title:"Submit for Review",style:{color:"#fbbf24",fontSize:12},onClick:async()=>{const prev=f.approvalStatus;f.approvalStatus="pending";render();const{data}=await sb.rpc("update_approval_status",{p_formula_id:f.id,p_status:"pending"});if(!data||!data.ok){f.approvalStatus=prev;flash(data?.error||"Failed to submit","error");}else{logAudit("submit_review","formula",f.id,{productCode:f.productCode,version:f.version});flash("Submitted for review");}render();}},"📤"):null,
+          isManager()&&f.approvalStatus==="pending"?h("button",{className:"abtn",title:"Approve",style:{color:"#34d399",fontSize:12},onClick:async()=>{const prev=f.approvalStatus;f.approvalStatus="approved";render();const{data}=await sb.rpc("update_approval_status",{p_formula_id:f.id,p_status:"approved"});if(!data||!data.ok){f.approvalStatus=prev;flash(data?.error||"Failed to approve","error");}else{logAudit("approve","formula",f.id,{productCode:f.productCode,version:f.version});flash("Formula approved");}render();}},"✅"):null,
+          isManager()&&f.approvalStatus==="pending"?h("button",{className:"abtn",title:"Reject",style:{color:"#f87171",fontSize:12},onClick:async()=>{const reason=prompt("Rejection reason (optional):");const prev=f.approvalStatus;f.approvalStatus="rejected";render();const{data}=await sb.rpc("update_approval_status",{p_formula_id:f.id,p_status:"rejected",p_reason:reason||null});if(!data||!data.ok){f.approvalStatus=prev;flash(data?.error||"Failed to reject","error");}else{logAudit("reject","formula",f.id,{productCode:f.productCode,version:f.version,reason});flash("Formula rejected");}render();}},"❌"):null,
+          !f.active?h("button",{className:"abtn",title:"Set Active",style:{color:"#34d399",fontSize:14},onClick:async()=>{await busy(async()=>{const ok=await dbSetActive(f.id,true);if(ok){versions.forEach(v=>{v.active=(v.id===f.id);});flash("V"+(f.version||1)+" set as Active");}else{flash("Failed to set active","error");}});render();}},"🔛"):null,
           /* Share button — visible to owners and managers */
           canShare(f)?h("button",{className:"abtn",title:"Share",style:{color:"#a78bfa",fontSize:13},onClick:()=>{openShareModal(f);}},"🔗"):null,
           h("button",{className:"abtn",title:"Edit",style:{color:"#60a5fa"},onClick:()=>{ST.frmEdit={...f,inputMode:f.inputMode||"kg",sensory:f.sensory?{...f.sensory}:{},ingredients:f.ingredients.map(r=>({...r}))};ST.frmView="edit";render();}},"✏️"),
