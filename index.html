@@ -318,7 +318,8 @@ async function dbSaveFrm(frm){
     p_notes:frm.notes||"",
     p_sensory:frm.sensory||{},
     p_created_by:frm.createdBy,
-    p_ingredients:ings
+    p_ingredients:ings,
+    p_session_token:ST.userToken||null
   });
   if(error){console.error("Formula save RPC error:",error);return false;}
   if(data&&data.ok){frm.id=data.id;frm._isNew=false;logAudit("save","formula",data.id,{productCode:frm.productCode,version:frm.version});return true;}
