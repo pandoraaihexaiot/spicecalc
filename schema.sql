@@ -72,7 +72,8 @@ CREATE TABLE IF NOT EXISTS formula_ingredients (
   item_code TEXT NOT NULL,
   qty DECIMAL(12,4) DEFAULT 0,
   pct DECIMAL(12,4) DEFAULT 0,
-  sort_order INT DEFAULT 0
+  sort_order INT DEFAULT 0,
+  step TEXT DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS costings (
@@ -306,8 +307,8 @@ BEGIN
     VALUES (p_product_code, p_product_name, p_batch_size, p_version, p_version_note, p_active, p_input_mode, p_notes, p_sensory, v_caller_slot, 'draft') RETURNING id INTO v_formula_id;
   END IF;
   DELETE FROM formula_ingredients WHERE formula_id = v_formula_id;
-  INSERT INTO formula_ingredients (formula_id, item_code, qty, pct, sort_order)
-  SELECT v_formula_id, ing->>'item_code', (ing->>'qty')::decimal, (ing->>'pct')::decimal, (ing->>'sort_order')::int FROM jsonb_array_elements(p_ingredients) AS ing;
+  INSERT INTO formula_ingredients (formula_id, item_code, qty, pct, sort_order, step)
+  SELECT v_formula_id, ing->>'item_code', (ing->>'qty')::decimal, (ing->>'pct')::decimal, (ing->>'sort_order')::int, COALESCE(ing->>'step', '') FROM jsonb_array_elements(p_ingredients) AS ing;
   IF p_active AND NOT v_is_shared_edit THEN
     UPDATE formulas SET active = FALSE WHERE product_code = p_product_code AND created_by = (SELECT created_by FROM formulas WHERE id = v_formula_id) AND id != v_formula_id;
   END IF;
