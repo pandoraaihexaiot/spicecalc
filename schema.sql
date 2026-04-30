@@ -78,11 +78,12 @@ CREATE TABLE IF NOT EXISTS formula_ingredients (
 
 CREATE TABLE IF NOT EXISTS costings (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  formula_id UUID NOT NULL REFERENCES formulas(id) ON DELETE CASCADE,
+  formula_id UUID REFERENCES formulas(id) ON DELETE CASCADE,
   product_code TEXT DEFAULT '',
   product_name TEXT DEFAULT '',
   version INT DEFAULT 1,
   raw_per_kg DECIMAL(12,4) DEFAULT 0,
+  raw_source TEXT NOT NULL DEFAULT 'formula' CHECK (raw_source IN ('formula', 'manual')),
   wastage DECIMAL(12,4) DEFAULT 0,
   packaging DECIMAL(12,4) DEFAULT 0,
   outer_pkg DECIMAL(12,4) DEFAULT 0,
@@ -91,9 +92,14 @@ CREATE TABLE IF NOT EXISTS costings (
   document DECIMAL(12,4) DEFAULT 0,
   lab DECIMAL(12,4) DEFAULT 0,
   other DECIMAL(12,4) DEFAULT 0,
+  label_cost DECIMAL(12,4) NOT NULL DEFAULT 0,
   margin DECIMAL(12,4) DEFAULT 30,
   grammage DECIMAL(12,4) NOT NULL DEFAULT 1,
   label TEXT NOT NULL DEFAULT '',
+  currency TEXT NOT NULL DEFAULT 'RM',
+  exchange_rate DECIMAL(12,6) NOT NULL DEFAULT 1,
+  calc_mode TEXT NOT NULL DEFAULT 'kg' CHECK (calc_mode IN ('kg', 'piece')),
+  weight_per_piece DECIMAL(12,6) NOT NULL DEFAULT 0,
   created_by INT NOT NULL REFERENCES users(slot),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -484,3 +490,49 @@ CREATE INDEX IF NOT EXISTS idx_ph_date ON price_history(changed_at DESC);
 -- ═══ CRON JOB ═══
 -- Enable pg_cron in Supabase Dashboard > Database > Extensions, then run:
 -- SELECT cron.schedule('cleanup-expired-sessions', '0 * * * *', 'DELETE FROM public.auth_sessions WHERE expires_at < now()');
+
+-- ═══ BACKUP & RESTORE ═══
+
+-- Backups storage bucket (private, admin-only)
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('backups', 'backups', false, 52428800, ARRAY['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/octet-stream'])
+ON CONFLICT (id) DO NOTHING;
+
+-- Storage RLS for backups bucket
+CREATE POLICY "Admin can upload backups" ON storage.objects
+FOR INSERT TO anon WITH CHECK (
+  bucket_id = 'backups'
+  AND (SELECT role FROM public.auth_sessions WHERE token = (current_setting('request.headers', true)::json->>'x-session-token') AND expires_at > NOW()) = 'admin'
+);
+CREATE POLICY "Admin can read backups" ON storage.objects
+FOR SELECT TO anon USING (
+  bucket_id = 'backups'
+  AND (SELECT role FROM public.auth_sessions WHERE token = (current_setting('request.headers', true)::json->>'x-session-token') AND expires_at > NOW()) = 'admin'
+);
+CREATE POLICY "Admin can delete backups" ON storage.objects
+FOR DELETE TO anon USING (
+  bucket_id = 'backups'
+  AND (SELECT role FROM public.auth_sessions WHERE token = (current_setting('request.headers', true)::json->>'x-session-token') AND expires_at > NOW()) = 'admin'
+);
+
+-- Restore from backup RPC (admin-only, upserts ingredients by item_code)
+CREATE OR REPLACE FUNCTION restore_from_backup(
+  p_ingredients JSONB DEFAULT NULL, p_formulas JSONB DEFAULT NULL,
+  p_formula_ingredients JSONB DEFAULT NULL, p_costings JSONB DEFAULT NULL
+) RETURNS JSON LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE v_slot INTEGER; v_role TEXT; v_ing_count INT := 0;
+BEGIN
+  v_slot := get_session_user_slot(); v_role := get_session_role();
+  IF v_role IS NULL OR v_role != 'admin' THEN RETURN json_build_object('ok', false, 'error', 'Admin access required'); END IF;
+  IF p_ingredients IS NOT NULL AND jsonb_array_length(p_ingredients) > 0 THEN
+    FOR i IN 0..jsonb_array_length(p_ingredients)-1 LOOP
+      INSERT INTO ingredients (item_code, item_name, description, packaging_size, price_per_kg)
+      VALUES (p_ingredients->i->>'item_code', COALESCE(p_ingredients->i->>'item_name',''), COALESCE(p_ingredients->i->>'description',''), COALESCE(p_ingredients->i->>'packaging_size',''), COALESCE((p_ingredients->i->>'price_per_kg')::decimal,0))
+      ON CONFLICT (item_code) DO UPDATE SET item_name=EXCLUDED.item_name, description=EXCLUDED.description, packaging_size=EXCLUDED.packaging_size, price_per_kg=EXCLUDED.price_per_kg, updated_at=NOW();
+      v_ing_count := v_ing_count + 1;
+    END LOOP;
+  END IF;
+  INSERT INTO audit_log (user_slot, user_name, action, entity, detail)
+  VALUES (v_slot, (SELECT name FROM users WHERE slot = v_slot), 'restore', 'backup', json_build_object('ingredients', v_ing_count)::text);
+  RETURN json_build_object('ok', true, 'ingredients', v_ing_count);
+END; $$;
